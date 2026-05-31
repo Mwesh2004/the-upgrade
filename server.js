@@ -330,7 +330,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 
     // Support both bcrypt hashed passwords and legacy plaintext passwords (migration path)
     let passwordValid = false;
-    const isBcryptHash = user.password && user.password.startsWith('$2b$');
+    const isBcryptHash = user.password && (user.password.startsWith('$2b$') || user.password.startsWith('$2a$'));
     
     if (isBcryptHash) {
       passwordValid = await bcrypt.compare(password, user.password);
@@ -338,12 +338,18 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       // Legacy plaintext comparison — auto-migrate to bcrypt on success
       passwordValid = (user.password === password);
       if (passwordValid) {
-        const hashedPassword = await bcrypt.hash(password, 10);
         try {
-          await updateCreatorUser(user.username, { ...user, password: hashedPassword });
+          const hashedPassword = await bcrypt.hash(password, 10);
+          await updateCreatorUser(user.username, {
+            password: hashedPassword,
+            name: user.name,
+            role: user.role,
+            permissions: user.permissions
+          });
           logEvent('SECURITY', `Auto-migrated password for user "${user.username}" from plaintext to bcrypt hash.`);
         } catch (migrationErr) {
-          console.error('Password migration failed (non-blocking):', migrationErr.message);
+          // Non-blocking — login still succeeds even if hash migration fails
+          console.error('Password hash migration failed (non-blocking):', migrationErr.message);
         }
       }
     }
@@ -383,6 +389,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       permissions: user.permissions
     });
   } catch (err) {
+    console.error('Login route error:', err);
     res.status(500).json({ error: 'Internal server login error.' });
   }
 });
