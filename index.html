@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Upgrade — Real Talk. No Performance.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- CUSTOM GLOBAL ALERTS BANNER -->
+<div id="global-toast-container" class="toast-container"></div>
+
+<!-- MASTHEAD -->
+<header class="masthead">
+  <div class="masthead-logo">
+    <a href="/" style="display: flex; align-items: center; text-decoration: none; color: inherit;">
+      <img src="/logo.png" alt="The Upgrade Logo" class="brand-logo-img">
+      <span>The Upgrade</span>
+    </a>
+  </div>
+  <div class="masthead-tagline">Weekly · Real Talk · No Performance</div>
+  <div class="masthead-right">
+    <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme">Theme</button>
+    <a href="#subscribe" class="masthead-cta">Subscribe Free</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-issue-tag">↑ Vol. 1 — Now Publishing Weekly</div>
+    <h1 class="hero-headline">
+      Real Talk.<br>
+      <span>No Fluff.</span>
+      No Guru.
+    </h1>
+    <p class="hero-sub">
+      A weekly newsletter about <strong>life, money, identity, mental health, and the internet</strong> — written for Kenyans who are tired of content that doesn't speak to their actual reality.
+    </p>
+    <form class="hero-form" onsubmit="handleSubscribe(event)">
+      <input type="email" placeholder="Your email address" required>
+      <button type="submit">Niingie →</button>
+    </form>
+      <div class="hero-stat">
+        <strong id="hero-issue-count">0</strong>
+        <span>Issues</span>
+      </div>
+      <div class="hero-stat">
+        <strong>200+</strong>
+        <span>Topics</span>
+      </div>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="hero-right-bg"></div>
+    <div class="hero-big-text">UPGRADE</div>
+    <div class="hero-articles-preview">
+      <!-- Loaded dynamically via search.js -->
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item">Real Life <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Real Talk <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Nairobi & Beyond <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">No Fake Gurus <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Weekly Issues <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Kwa Wakenya <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Mental Health <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Money Talk <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Identity <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">No Fluff <span class="marquee-dot">·</span></span>
+    <!-- Duplicate for seamless loop -->
+    <span class="marquee-item">Real Life <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Real Talk <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Nairobi & Beyond <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">No Fake Gurus <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Weekly Issues <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Kwa Wakenya <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Mental Health <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Money Talk <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">Identity <span class="marquee-dot">·</span></span>
+    <span class="marquee-item">No Fluff <span class="marquee-dot">·</span></span>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<section class="about-strip">
+  <div class="about-label-col">
+    <div class="about-kicker">About The Newsletter</div>
+    <h2 class="about-label-headline">
+      Built For<br>
+      <em>Real</em><br>
+      People
+    </h2>
+  </div>
+  <div class="about-content-col">
+    <div>
+      <p class="about-para">
+        Most content online talks to people in San Francisco or London. <strong>The Upgrade is different.</strong> It's built for Kenyans — the student in campus trying to figure out life, the young professional navigating a broken job market, the person carrying more than their share.
+      </p>
+      <p class="about-para">
+        Every week, one honest piece on something that matters. No motivation speech. No fake guru energy. Just real talk about real things — with Kenyan banter built in, because life is ngori enough without boring newsletters.
+      </p>
+    </div>
+    <ul class="about-list">
+      <li>Weekly issues every Monday morning</li>
+      <li>Topics spanning life, money, identity & mental health</li>
+      <li>Written with Kenyan context and banter</li>
+      <li>No ads. No sponsors. No performance.</li>
+      <li>One honest question per issue to sit with</li>
+      <li>Always free to subscribe</li>
+    </ul>
+  </div>
+</section>
+
+<!-- TOPICS -->
+<section class="topics-section">
+  <div class="topics-header">
+    <h2 class="section-title">What We Cover</h2>
+    <span class="section-count">8 Core Topics · 250 Articles</span>
+  </div>
+  <div class="topics-grid">
+    <div class="topic-card" data-topic="Mental Health">
+      <div class="topic-name">Mental Health</div>
+      <p class="topic-desc">Burnout, anxiety, grief, therapy, and the conversations Kenyan culture still avoids having.</p>
+      <span class="topic-count">12 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="Money">
+      <div class="topic-name">Money & Finance</div>
+      <p class="topic-desc">Real finance for irregular income, borrowed money, scarcity mindset, and building wealth with family depending on you.</p>
+      <span class="topic-count">10 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="Relationships">
+      <div class="topic-name">Relationships</div>
+      <p class="topic-desc">Friendships that fade, situationships, long distance, family pressure, and love in a complicated world.</p>
+      <span class="topic-count">14 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="Identity">
+      <div class="topic-name">Identity & Society</div>
+      <p class="topic-desc">Tribalism, social class, who you are online vs. offline, and what it means to be Kenyan in 2026.</p>
+      <span class="topic-count">9 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="Career & Education">
+      <div class="topic-name">Career & Education</div>
+      <p class="topic-desc">What your degree actually does, the job market nobody prepared you for, and navigating workplaces that weren't built for you.</p>
+      <span class="topic-count">8 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="Personality">
+      <div class="topic-name">Personality & Self</div>
+      <p class="topic-desc">Introverts, overthinkers, empaths, perfectionists — understanding how you're wired and making it work for you.</p>
+      <span class="topic-count">11 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="City Life">
+      <div class="topic-name">City Life</div>
+      <p class="topic-desc">Nairobi. Rent. Roommates. Traffic. Independence. The city that doesn't ease you in and what it makes of you.</p>
+      <span class="topic-count">7 Issues</span>
+    </div>
+    <div class="topic-card" data-topic="Modern Culture">
+      <div class="topic-name">Modern Culture</div>
+      <p class="topic-desc">The algorithm's grip, cancel culture, evolving slang, art as rebellion, and navigating the modern attention economy.</p>
+      <span class="topic-count">14 Issues</span>
+    </div>
+  </div>
+</section>
+
+<!-- SAMPLE ARTICLES -->
+<section class="samples-section">
+  <div class="samples-header">
+    <div>
+      <h2 class="section-title">Recent Issues</h2>
+      <div class="active-filters-badges" id="active-filters"></div>
+    </div>
+    <div class="search-and-status">
+      <div class="search-box-wrap">
+        <input type="text" id="issue-search-input" placeholder="Search issues (e.g. money, mtaa)...">
+        <span class="search-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display: block; opacity: 0.6;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </span>
+      </div>
+      <span class="section-count" id="issues-count-display">0 Issues Shown</span>
+    </div>
+  </div>
+  <div class="samples-grid">
+    <!-- Loaded dynamically via search.js -->
+  </div>
+</section>
+
+<!-- QUOTE -->
+<section class="quote-section">
+  <div class="quote-bg-text">UPGRADE</div>
+  <span class="quote-mark">"</span>
+  <p class="quote-text">
+    The internet is the biggest wealth redistribution event in history. It doesn't care where you're from, what school you went to, or whether you know the right people. Utaskia watu wakisema it's too late. Hiyo ni uwongo.
+  </p>
+  <div class="quote-attr">— The Upgrade, Issue #001</div>
+</section>
+
+<!-- WHY SUBSCRIBE -->
+<section class="why-section">
+  <div class="why-left">
+    <h2 class="section-title">Why<br>Subscribe?</h2>
+    <div class="why-item">
+      <span class="why-num">01</span>
+      <div class="why-text">
+        <strong>Built for your reality</strong>
+        <p>Written with Kenyan context baked in. The references, the prices, the pressure — it speaks to where you actually live.</p>
+      </div>
+    </div>
+    <div class="why-item">
+      <span class="why-num">02</span>
+      <div class="why-text">
+        <strong>Honest, not motivational</strong>
+        <p>No fake guru energy. No "manifest success." Just real talk about real things, with one honest action at the end of every issue.</p>
+      </div>
+    </div>
+    <div class="why-item">
+      <span class="why-num">03</span>
+      <div class="why-text">
+        <strong>Covers what others don't</strong>
+        <p>Mental health, money, relationships, identity, family — the full picture of life, not just the career or the hustle.</p>
+      </div>
+    </div>
+    <div class="why-item">
+      <span class="why-num">04</span>
+      <div class="why-text">
+        <strong>Banter included, free of charge</strong>
+        <p>Because a newsletter that makes you think should also make you feel at home. Saa nyingine unahitaji tu kitu kinachokusema.</p>
+      </div>
+    </div>
+  </div>
+  <div class="why-right">
+    <div class="why-right-headline">
+      One Read.<br>
+      <em>Every</em><br>
+      Monday.
+    </div>
+    <p>No spam. No sales pitch. Just one honest issue landing in your inbox once a week.</p>
+    <a href="#subscribe" class="masthead-cta" style="font-size:12px; padding: 14px 32px;">
+      Niingie Saa Hii →
+    </a>
+  </div>
+</section>
+
+<!-- SUBSCRIBE -->
+<section class="subscribe-section" id="subscribe">
+  <div class="subscribe-bg">JOIN</div>
+  <div class="subscribe-kicker">↓ Free Forever · No Spam</div>
+  <h2 class="subscribe-headline">
+    Join<br>The Upgrade
+  </h2>
+  <p class="subscribe-sub">
+    One honest issue every Monday. Real talk about real life. Built for Kenya.
+  </p>
+  <form class="subscribe-form" onsubmit="handleSubscribe(event)">
+    <input type="email" placeholder="Enter your email" required>
+    <button type="submit">Subscribe →</button>
+  </form>
+  <p class="subscribe-note">Free to subscribe · Unsubscribe anytime · No spam ever</p>
+</section>
+
+<!-- FOOTER -->
+<footer class="premium-footer">
+  <div class="footer-grid">
+    <div class="footer-brand-col">
+      <div class="logo">
+        <a href="/" style="display: flex; align-items: center; text-decoration: none; color: inherit;">
+          <img src="/logo.png" alt="The Upgrade Logo" class="brand-logo-img">
+          <span>The Upgrade</span>
+        </a>
+      </div>
+      <p class="footer-tag">Weekly · Real Talk · No Performance.</p>
+      <p class="footer-desc">An honest newsletter written for Kenyans who are tired of superficial advice and fake guru noise. Delivering real perspectives on life, money, identity, and mental health every Monday morning.</p>
+      <div class="footer-badge-wrap">
+        <span class="footer-accent-badge">Made in Nairobi</span>
+      </div>
+    </div>
+    <div class="footer-nav-col">
+      <h4>Explore</h4>
+      <ul class="footer-links-grid">
+        <li><a href="#" onclick="document.querySelector('.samples-section').scrollIntoView({behavior:'smooth'}); return false;">Newsletter Archive</a></li>
+        <li><a href="#subscribe">Join Weekly List</a></li>
+        <li><a href="#about-section" onclick="document.querySelector('.about-strip').scrollIntoView({behavior: 'smooth'})">About The Upgrade</a></li>
+      </ul>
+    </div>
+    <div class="footer-nav-col">
+      <h4>Team</h4>
+      <ul class="footer-links-grid">
+        <li><a href="mailto:hello@theupgrade.co.ke">Contact Us</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">© 2026 The Upgrade. All rights reserved. Real Talk. No Performance.</div>
+    <div class="footer-meta-stats">
+      <span>Vol 1. Issue tracker: <strong id="footer-issues-count">0</strong></span>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

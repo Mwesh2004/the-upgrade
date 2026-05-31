@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: the-upgrade-newsletter
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true # Generates a secure signing key automatically
+      - key: RESEND_API_KEY
+        sync: false # You will paste your API key in the Render dashboard
+      - key: FORMSPREE_FORM_ID
+        sync: false # You will paste your Formspree Form ID here
+      - key: DATABASE_URL
+        sync: false # You will paste your Supabase/Neon PostgreSQL connection string here
