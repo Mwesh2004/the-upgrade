@@ -83,62 +83,66 @@ function writeJSONFile(filename, data) {
 
 let dbInitialized = false;
 
+function initLocalJSON() {
+  // Ensure local JSON databases exist
+  readJSONFile('subscribers.json', '[]');
+  readJSONFile('activity-log.json', '[]');
+  readJSONFile('issues.json', '[]');
+  
+  // Ensure local users.json exists with BerylBytes superadmin and other seed roles
+  const localUsers = readJSONFile('users.json', '[]');
+  if (localUsers.length === 0) {
+    const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(8).toString('hex');
+    if (!process.env.DEFAULT_ADMIN_PASSWORD) {
+      console.log(`\n======================================================`);
+      console.log(`⚠️  SECURITY NOTICE: DEFAULT_ADMIN_PASSWORD not set.`);
+      console.log(`Generated safe default admin password: ${defaultPassword}`);
+      console.log(`Please save this and change it in the dashboard!`);
+      console.log(`======================================================\n`);
+    }
+    
+    const hashedDefault = bcrypt.hashSync(defaultPassword, 10);
+    const defaultUsers = [
+      {
+        "username": "berylbytes",
+        "password": hashedDefault,
+        "name": "BerylBytes",
+        "role": "superadmin",
+        "permissions": ["metrics:read", "subscribers:read", "subscribers:write", "issues:write", "logs:read"]
+      }
+    ];
+    writeJSONFile('users.json', defaultUsers);
+  } else {
+    let updated = false;
+    localUsers.forEach(u => {
+      if ((u.username === 'superadmin' || u.username === 'berylbytes') && u.name !== 'BerylBytes') {
+        u.name = 'BerylBytes';
+        updated = true;
+      }
+    });
+    if (!localUsers.some(u => u.username === 'berylbytes')) {
+      const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(8).toString('hex');
+      localUsers.unshift({
+        "username": "berylbytes",
+        "password": bcrypt.hashSync(defaultPassword, 10),
+        "name": "BerylBytes",
+        "role": "superadmin",
+        "permissions": ["metrics:read", "subscribers:read", "subscribers:write", "issues:write", "logs:read"]
+      });
+      updated = true;
+      console.log(`Created berylbytes user with auto-generated password: ${defaultPassword}`);
+    }
+    if (updated) {
+      writeJSONFile('users.json', localUsers);
+    }
+  }
+}
+
 export async function initializeDatabase() {
   if (dbInitialized) return;
 
-  if (!isPG) {
-    // Ensure local JSON databases exist
-    readJSONFile('subscribers.json', '[]');
-    readJSONFile('activity-log.json', '[]');
-    readJSONFile('issues.json', '[]');
-    
-    // Ensure local users.json exists with BerylBytes superadmin and other seed roles
-    const localUsers = readJSONFile('users.json', '[]');
-    if (localUsers.length === 0) {
-      const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(8).toString('hex');
-      if (!process.env.DEFAULT_ADMIN_PASSWORD) {
-        console.log(`\n======================================================`);
-        console.log(`⚠️  SECURITY NOTICE: DEFAULT_ADMIN_PASSWORD not set.`);
-        console.log(`Generated safe default admin password: ${defaultPassword}`);
-        console.log(`Please save this and change it in the dashboard!`);
-        console.log(`======================================================\n`);
-      }
-      
-      const hashedDefault = bcrypt.hashSync(defaultPassword, 10);
-      const defaultUsers = [
-        {
-          "username": "berylbytes",
-          "password": hashedDefault,
-          "name": "BerylBytes",
-          "role": "superadmin",
-          "permissions": ["metrics:read", "subscribers:read", "subscribers:write", "issues:write", "logs:read"]
-        }
-      ];
-      writeJSONFile('users.json', defaultUsers);
-    } else {
-      let updated = false;
-      localUsers.forEach(u => {
-        if ((u.username === 'superadmin' || u.username === 'berylbytes') && u.name !== 'BerylBytes') {
-          u.name = 'BerylBytes';
-          updated = true;
-        }
-      });
-      if (!localUsers.some(u => u.username === 'berylbytes')) {
-        const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(8).toString('hex');
-        localUsers.unshift({
-          "username": "berylbytes",
-          "password": bcrypt.hashSync(defaultPassword, 10),
-          "name": "BerylBytes",
-          "role": "superadmin",
-          "permissions": ["metrics:read", "subscribers:read", "subscribers:write", "issues:write", "logs:read"]
-        });
-        updated = true;
-        console.log(`Created berylbytes user with auto-generated password: ${defaultPassword}`);
-      }
-      if (updated) {
-        writeJSONFile('users.json', localUsers);
-      }
-    }
+  if (!pool) {
+    initLocalJSON();
     console.log('Database initialized in [Local JSON Fallback] mode.');
     dbInitialized = true;
     return;
@@ -269,8 +273,12 @@ export async function initializeDatabase() {
     console.log('PostgreSQL database schemas verified & ready.');
     dbInitialized = true;
   } catch (err) {
-    console.error('CRITICAL: Failed to initialize PostgreSQL database:', err.message);
-    throw err;
+    console.error('WARNING: Failed to initialize PostgreSQL database:', err.message);
+    console.error('Falling back to local JSON storage mode. Portal will still work.');
+    // Disable PG mode so all functions use local JSON fallback
+    pool = null;
+    initLocalJSON();
+    dbInitialized = true; // Mark as initialized to prevent retry loops
   }
 }
 
@@ -279,7 +287,7 @@ export async function logActivity(action, details) {
   const now = new Date();
   const timestamp = now.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
 
-  if (isPG) {
+  if (pool) {
     try {
       await pool.query(
         'INSERT INTO activity_log (timestamp, action, details) VALUES ($1, $2, $3)',
@@ -302,7 +310,7 @@ export async function logActivity(action, details) {
 
 // 2. Fetch Activity Logs
 export async function getActivityLogs() {
-  if (isPG) {
+  if (pool) {
     const res = await pool.query('SELECT timestamp, action, details FROM activity_log ORDER BY id DESC LIMIT 200');
     return res.rows;
   } else {
@@ -312,7 +320,7 @@ export async function getActivityLogs() {
 
 // 3. Fetch Subscribers
 export async function getSubscribers() {
-  if (isPG) {
+  if (pool) {
     const res = await pool.query('SELECT email, date, source FROM subscribers ORDER BY email ASC');
     return res.rows;
   } else {
@@ -325,7 +333,7 @@ export async function addSubscriber(email, source) {
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  if (isPG) {
+  if (pool) {
     // Inserts or ignores duplicate emails
     await pool.query(
       `INSERT INTO subscribers (email, date, source) 
@@ -344,7 +352,7 @@ export async function addSubscriber(email, source) {
 
 // 5. Delete Subscriber
 export async function deleteSubscriber(email) {
-  if (isPG) {
+  if (pool) {
     const res = await pool.query('DELETE FROM subscribers WHERE LOWER(email) = LOWER($1)', [email]);
     return res.rowCount > 0;
   } else {
@@ -360,7 +368,7 @@ export async function deleteSubscriber(email) {
 
 // 6. Fetch Issues
 export async function getIssues() {
-  if (isPG) {
+  if (pool) {
     const res = await pool.query('SELECT id, number, title, category, excerpt, date, "readTime", question, content FROM issues ORDER BY id DESC');
     return res.rows;
   } else {
@@ -370,7 +378,7 @@ export async function getIssues() {
 
 // 7. Add Issue
 export async function addIssue(issue) {
-  if (isPG) {
+  if (pool) {
     await pool.query(
       `INSERT INTO issues (id, number, title, category, excerpt, date, "readTime", question, content)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -385,24 +393,45 @@ export async function addIssue(issue) {
 
 // 8. Fetch Creator Users
 export async function getCreatorUsers() {
-  if (isPG) {
-    const res = await pool.query('SELECT username, password, name, role, permissions FROM creator_users ORDER BY username ASC');
-    return res.rows;
-  } else {
-    if (process.env.CREATOR_USERS) {
-      try {
-        return JSON.parse(process.env.CREATOR_USERS);
-      } catch (err) {
-        console.error("Failed to parse CREATOR_USERS environment variable in db.js:", err.message);
-      }
+  if (pool) {
+    try {
+      const res = await pool.query('SELECT username, password, name, role, permissions FROM creator_users ORDER BY username ASC');
+      return res.rows;
+    } catch (err) {
+      console.error('PG getCreatorUsers failed, falling back to env/local:', err.message);
+      // Fall through to env/local fallback below
     }
-    return readJSONFile('users.json');
   }
+  
+  // Fallback: environment variable
+  if (process.env.CREATOR_USERS) {
+    try {
+      return JSON.parse(process.env.CREATOR_USERS);
+    } catch (err) {
+      console.error("Failed to parse CREATOR_USERS environment variable in db.js:", err.message);
+    }
+  }
+  
+  // Fallback: local JSON file
+  const localUsers = readJSONFile('users.json');
+  if (localUsers && localUsers.length > 0) {
+    return localUsers;
+  }
+  
+  // Last resort: create a default admin from env password
+  const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'changeme';
+  return [{
+    username: 'berylbytes',
+    password: defaultPassword,
+    name: 'BerylBytes',
+    role: 'superadmin',
+    permissions: ["metrics:read", "subscribers:read", "subscribers:write", "issues:write", "logs:read"]
+  }];
 }
 
 // 9. Add Creator User
 export async function addCreatorUser(user) {
-  if (isPG) {
+  if (pool) {
     await pool.query(
       `INSERT INTO creator_users (username, password, name, role, permissions) 
        VALUES ($1, $2, $3, $4, $5)`,
@@ -419,7 +448,7 @@ export async function addCreatorUser(user) {
 
 // 10. Update Creator User
 export async function updateCreatorUser(username, updatedUser) {
-  if (isPG) {
+  if (pool) {
     await pool.query(
       `UPDATE creator_users 
        SET password = $1, name = $2, role = $3, permissions = $4 
