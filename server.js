@@ -313,6 +313,22 @@ app.post('/api/track', trackingLimiter, (req, res) => {
 
 // ── AUTHENTICATION API ENDPOINTS ──
 
+// Temporary safe diagnostic — shows user count and hash format only, no secrets
+app.get('/api/auth/check', async (req, res) => {
+  try {
+    const users = await getCreatorUsers();
+    const info = users.map(u => ({
+      username: u.username,
+      role: u.role,
+      passwordFormat: u.password ? (u.password.startsWith('$2') ? 'bcrypt' : `plaintext(${u.password.length}chars)`) : 'MISSING',
+      hasPermissions: Array.isArray(u.permissions)
+    }));
+    res.json({ count: users.length, users: info, bcryptjsLoaded: typeof bcrypt.compare === 'function' });
+  } catch (err) {
+    res.status(500).json({ error: err.message, stack: err.stack?.split('\n').slice(0, 3) });
+  }
+});
+
 // 1. Password credentials verification & Token cookie issuance (rate limited, sanitized)
 app.post('/api/auth/login', authLimiter, async (req, res) => {
   const username = typeof req.body.username === 'string' ? req.body.username.trim().substring(0, 50) : '';
