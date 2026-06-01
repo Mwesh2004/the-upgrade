@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import helmet from 'helmet';
 import {
@@ -81,7 +81,10 @@ app.use(cors({
   origin: true,
   credentials: true
 }));
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Vite injects inline scripts; CSP handled by custom headers below
+  crossOriginEmbedderPolicy: false // Allow loading Google Fonts and external assets
+}));
 app.use(express.json({ limit: '10kb' })); // Mitigate DOS / buffer exploit vectors
 app.use(cookieParser());
 
