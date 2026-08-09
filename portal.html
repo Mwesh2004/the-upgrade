@@ -2,36 +2,1688 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Creator Portal - The Upgrade</title>
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Creator Portal — The Upgrade</title>
+
+  <meta
+    name="robots"
+    content="noindex, nofollow"
+  >
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/src/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet"
+  >
+
   <style>
+    :root {
+      --bg: #f4f1eb;
+      --panel: #fff;
+      --text: #111;
+      --muted: #777;
+      --border: #dedad2;
+      --accent: #111;
+      --soft: #ebe7df;
+      --success: #286b43;
+      --danger: #a52b2b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      background-color: var(--db-bg);
-      color: var(--db-text);
       margin: 0;
-      padding: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "DM Sans", sans-serif;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .portal {
       min-height: 100vh;
       display: flex;
     }
-    #creator-dashboard-portal {
+
+    /* SIDEBAR */
+
+    .sidebar {
+      width: 250px;
+      background: #111;
+      color: #fff;
+      min-height: 100vh;
+      padding: 28px 20px;
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      z-index: 20;
+    }
+
+    .brand {
+      display: block;
+      color: #fff;
+      text-decoration: none;
+      margin-bottom: 45px;
+    }
+
+    .brand-name {
+      font-family: "Bebas Neue", sans-serif;
+      font-size: 34px;
+      letter-spacing: 1px;
+      line-height: 1;
+    }
+
+    .brand-label {
+      margin-top: 8px;
+      font-family: "Space Mono", monospace;
+      font-size: 9px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .nav-title {
+      color: #777;
+      font-family: "Space Mono", monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 25px 12px 10px;
+    }
+
+    .nav-btn {
       width: 100%;
-      height: 100vh;
+      border: 0;
+      background: transparent;
+      color: #aaa;
+      text-align: left;
+      padding: 12px;
+      margin-bottom: 4px;
+      border-radius: 5px;
+      transition: .2s;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active {
+      background: #292929;
+      color: #fff;
+    }
+
+    .sidebar-bottom {
+      position: absolute;
+      bottom: 25px;
+      left: 20px;
+      right: 20px;
+    }
+
+    .site-link {
+      display: block;
+      color: #aaa;
+      text-decoration: none;
+      font-size: 13px;
+      padding: 12px;
+      border-top: 1px solid #333;
+    }
+
+    /* MAIN */
+
+    .main {
+      margin-left: 250px;
+      width: calc(100% - 250px);
+      min-height: 100vh;
+    }
+
+    .topbar {
+      height: 75px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(244, 241, 235, .94);
+      backdrop-filter: blur(10px);
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 35px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .topbar-title {
+      font-family: "Bebas Neue", sans-serif;
+      font-size: 28px;
+      letter-spacing: .5px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .creator-name {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .logout-btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 8px 13px;
+      font-size: 12px;
+    }
+
+    .content {
+      padding: 35px;
+      max-width: 1500px;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    /* DASHBOARD */
+
+    .welcome {
+      margin-bottom: 30px;
+    }
+
+    .eyebrow {
+      font-family: "Space Mono", monospace;
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-family: "Bebas Neue", sans-serif;
+      font-size: clamp(45px, 6vw, 75px);
+      line-height: .9;
+      margin: 0;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 23px;
+    }
+
+    .stat-number {
+      font-family: "Bebas Neue", sans-serif;
+      font-size: 42px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 25px;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .panel-title h2 {
+      font-size: 16px;
+      margin: 0;
+    }
+
+    .issue-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .issue {
+      border: 1px solid var(--border);
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .issue-title {
+      font-weight: 600;
+    }
+
+    .issue-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .status {
+      font-family: "Space Mono", monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      padding: 5px 8px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    .status.published {
+      background: #e0f0e5;
+      color: var(--success);
+    }
+
+    .status.draft {
+      background: #eee;
+      color: #666;
+    }
+
+    /* EDITOR */
+
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+    }
+
+    .editor-main,
+    .editor-side {
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+
+    .editor-main {
+      padding: 30px;
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    .field label {
+      display: block;
+      font-family: "Space Mono", monospace;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: .8px;
+      margin-bottom: 8px;
+      color: #666;
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 13px;
+      outline: none;
+    }
+
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      border-color: #111;
+    }
+
+    #article-title {
+      font-family: "Bebas Neue", sans-serif;
+      font-size: 38px;
+    }
+
+    #article-excerpt {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    #article-content {
+      min-height: 420px;
+      resize: vertical;
+      line-height: 1.8;
+    }
+
+    .editor-side {
+      padding: 25px;
+    }
+
+    .editor-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 25px;
+    }
+
+    .btn {
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      padding: 13px 18px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .btn.secondary {
+      background: #fff;
+      color: #111;
+    }
+
+    .btn.danger {
+      background: #fff;
+      color: var(--danger);
+      border-color: #e2baba;
+    }
+
+    /* ARTICLES */
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .search {
+      flex: 1;
+      min-width: 220px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+
+    .articles {
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+
+    .article-row {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .article-row:last-child {
+      border-bottom: 0;
+    }
+
+    .article-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .small-btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 8px 11px;
+      font-size: 11px;
+    }
+
+    .empty {
+      padding: 45px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    /* TOAST */
+
+    .toast {
+      position: fixed;
+      right: 25px;
+      bottom: 25px;
+      background: #111;
+      color: #fff;
+      padding: 15px 20px;
+      max-width: 350px;
+      z-index: 100;
+      box-shadow: 0 8px 30px rgba(0,0,0,.2);
+      font-size: 13px;
+    }
+
+    .toast.success {
+      background: var(--success);
+    }
+
+    .toast.error {
+      background: var(--danger);
+    }
+
+    /* MOBILE */
+
+    .mobile-menu {
+      display: none;
+    }
+
+    @media (max-width: 1000px) {
+
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .dashboard-grid,
+      .editor-layout {
+        grid-template-columns: 1fr;
+      }
+
+    }
+
+    @media (max-width: 700px) {
+
+      .sidebar {
+        transform: translateX(-100%);
+        transition: .25s;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%;
+      }
+
+      .mobile-menu {
+        display: block;
+        border: 0;
+        background: transparent;
+        font-size: 24px;
+      }
+
+      .topbar {
+        padding: 0 18px;
+      }
+
+      .content {
+        padding: 20px;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .creator-name {
+        display: none;
+      }
+
+      .article-row {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
     }
   </style>
 </head>
+
 <body>
 
-<!-- CUSTOM GLOBAL ALERTS BANNER -->
-<div id="global-toast-container" class="toast-container"></div>
+<div class="portal">
 
-<div id="app">
-  <!-- Dashboard UI injected here via portal.js -->
+  <aside class="sidebar" id="sidebar">
+
+    <a href="/" class="brand">
+      <div class="brand-name">THE UPGRADE</div>
+      <div class="brand-label">Creator Portal</div>
+    </a>
+
+    <div class="nav-title">Workspace</div>
+
+    <button class="nav-btn active" data-view="dashboard">
+      Dashboard
+    </button>
+
+    <button class="nav-btn" data-view="new">
+      + New Issue
+    </button>
+
+    <button class="nav-btn" data-view="articles">
+      Articles
+    </button>
+
+    <div class="nav-title">Site</div>
+
+    <button class="nav-btn" onclick="window.open('/', '_blank')">
+      View Website
+    </button>
+
+    <button class="nav-btn" onclick="window.open('/contact', '_blank')">
+      Contact Page
+    </button>
+
+    <div class="sidebar-bottom">
+      <a href="/" class="site-link">
+        ← Back to The Upgrade
+      </a>
+    </div>
+
+  </aside>
+
+
+  <main class="main">
+
+    <header class="topbar">
+
+      <div style="display:flex;align-items:center;gap:12px">
+
+        <button
+          class="mobile-menu"
+          id="mobile-menu"
+          aria-label="Open menu"
+        >
+          ☰
+        </button>
+
+        <div class="topbar-title">
+          Creator Portal
+        </div>
+
+      </div>
+
+      <div class="topbar-right">
+
+        <span class="creator-name">
+          The Upgrade Creator
+        </span>
+
+        <button class="logout-btn" id="logout-btn">
+          Log out
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <div class="content">
+
+
+      <!-- DASHBOARD -->
+
+      <section
+        class="view active"
+        id="dashboard-view"
+      >
+
+        <div class="welcome">
+
+          <div class="eyebrow">
+            The Upgrade · Publishing Desk
+          </div>
+
+          <h1>
+            Your<br>
+            Workspace.
+          </h1>
+
+        </div>
+
+
+        <div class="stats">
+
+          <div class="stat">
+
+            <div
+              class="stat-number"
+              id="stat-total"
+            >
+              0
+            </div>
+
+            <div class="stat-label">
+              Total Issues
+            </div>
+
+          </div>
+
+
+          <div class="stat">
+
+            <div
+              class="stat-number"
+              id="stat-published"
+            >
+              0
+            </div>
+
+            <div class="stat-label">
+              Published
+            </div>
+
+          </div>
+
+
+          <div class="stat">
+
+            <div
+              class="stat-number"
+              id="stat-drafts"
+            >
+              0
+            </div>
+
+            <div class="stat-label">
+              Drafts
+            </div>
+
+          </div>
+
+
+          <div class="stat">
+
+            <div
+              class="stat-number"
+              id="stat-topics"
+            >
+              0
+            </div>
+
+            <div class="stat-label">
+              Topics
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="dashboard-grid">
+
+
+          <div class="panel">
+
+            <div class="panel-title">
+
+              <h2>
+                Recent Issues
+              </h2>
+
+              <button
+                class="small-btn"
+                onclick="showView('articles')"
+              >
+                View all
+              </button>
+
+            </div>
+
+            <div
+              class="issue-list"
+              id="recent-issues"
+            ></div>
+
+          </div>
+
+
+          <div class="panel">
+
+            <div class="panel-title">
+
+              <h2>
+                Quick Actions
+              </h2>
+
+            </div>
+
+            <div class="editor-actions">
+
+              <button
+                class="btn"
+                onclick="showView('new')"
+              >
+                + Write New Issue
+              </button>
+
+              <button
+                class="btn secondary"
+                onclick="showView('articles')"
+              >
+                Manage Articles
+              </button>
+
+              <button
+                class="btn secondary"
+                onclick="window.open('/', '_blank')"
+              >
+                View Live Website
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- NEW ISSUE -->
+
+      <section
+        class="view"
+        id="new-view"
+      >
+
+        <div class="welcome">
+
+          <div class="eyebrow">
+            Publishing Desk
+          </div>
+
+          <h1>
+            New Issue.
+          </h1>
+
+        </div>
+
+
+        <div class="editor-layout">
+
+
+          <div class="editor-main">
+
+            <div class="field">
+
+              <label for="article-title">
+                Title
+              </label>
+
+              <input
+                id="article-title"
+                type="text"
+                placeholder="Give this issue a title..."
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="article-excerpt">
+                Short Description
+              </label>
+
+              <textarea
+                id="article-excerpt"
+                placeholder="What is this issue about?"
+              ></textarea>
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="article-content">
+                Article
+              </label>
+
+              <textarea
+                id="article-content"
+                placeholder="Start writing..."
+              ></textarea>
+
+            </div>
+
+          </div>
+
+
+          <aside class="editor-side">
+
+            <div class="field">
+
+              <label for="article-topic">
+                Topic
+              </label>
+
+              <select id="article-topic">
+
+                <option>
+                  Mental Health
+                </option>
+
+                <option>
+                  Money
+                </option>
+
+                <option>
+                  Relationships
+                </option>
+
+                <option>
+                  Identity
+                </option>
+
+                <option>
+                  Career & Education
+                </option>
+
+                <option>
+                  Personality
+                </option>
+
+                <option>
+                  City Life
+                </option>
+
+                <option>
+                  Modern Culture
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="article-status">
+                Status
+              </label>
+
+              <select id="article-status">
+
+                <option value="draft">
+                  Draft
+                </option>
+
+                <option value="published">
+                  Published
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <div class="field">
+
+              <label for="article-author">
+                Author
+              </label>
+
+              <input
+                id="article-author"
+                type="text"
+                value="The Upgrade"
+              >
+
+            </div>
+
+
+            <div class="editor-actions">
+
+              <button
+                class="btn"
+                id="save-issue"
+              >
+                Save Issue
+              </button>
+
+              <button
+                class="btn secondary"
+                id="clear-editor"
+              >
+                Clear
+              </button>
+
+            </div>
+
+          </aside>
+
+
+        </div>
+
+      </section>
+
+
+      <!-- ARTICLES -->
+
+      <section
+        class="view"
+        id="articles-view"
+      >
+
+        <div class="welcome">
+
+          <div class="eyebrow">
+            Content Library
+          </div>
+
+          <h1>
+            Articles.
+          </h1>
+
+        </div>
+
+
+        <div class="toolbar">
+
+          <input
+            class="search"
+            id="article-search"
+            type="search"
+            placeholder="Search articles..."
+          >
+
+          <button
+            class="btn"
+            onclick="showView('new')"
+          >
+            + New Issue
+          </button>
+
+        </div>
+
+
+        <div
+          class="articles"
+          id="articles-list"
+        ></div>
+
+      </section>
+
+
+    </div>
+
+  </main>
+
 </div>
 
-<script type="module" src="/src/portal.js"></script>
+
+<div
+  id="toast-container"
+></div>
+
+
+<script>
+
+  const STORAGE_KEY = "the_upgrade_creator_issues";
+
+  let issues = [];
+
+  let editingId = null;
+
+
+  function loadIssues() {
+
+    try {
+
+      const stored =
+        localStorage.getItem(STORAGE_KEY);
+
+      issues = stored
+        ? JSON.parse(stored)
+        : [];
+
+    } catch (error) {
+
+      issues = [];
+
+    }
+
+    updateDashboard();
+    renderArticles();
+
+  }
+
+
+  function saveIssues() {
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(issues)
+    );
+
+    updateDashboard();
+    renderArticles();
+
+  }
+
+
+  function showToast(message, type = "") {
+
+    const toast =
+      document.createElement("div");
+
+    toast.className =
+      "toast " + type;
+
+    toast.textContent = message;
+
+    document
+      .getElementById("toast-container")
+      .appendChild(toast);
+
+    setTimeout(() => {
+
+      toast.remove();
+
+    }, 3500);
+
+  }
+
+
+  function showView(view) {
+
+    document
+      .querySelectorAll(".view")
+      .forEach(element => {
+
+        element.classList.remove("active");
+
+      });
+
+
+    const target =
+      document.getElementById(
+        view + "-view"
+      );
+
+    if (target) {
+
+      target.classList.add("active");
+
+    }
+
+
+    document
+      .querySelectorAll(".nav-btn")
+      .forEach(button => {
+
+        button.classList.toggle(
+          "active",
+          button.dataset.view === view
+        );
+
+      });
+
+
+    document
+      .getElementById("sidebar")
+      .classList.remove("open");
+
+  }
+
+
+  window.showView = showView;
+
+
+  function updateDashboard() {
+
+    const published =
+      issues.filter(
+        issue => issue.status === "published"
+      );
+
+    const drafts =
+      issues.filter(
+        issue => issue.status === "draft"
+      );
+
+    const topics =
+      new Set(
+        issues.map(issue => issue.topic)
+      );
+
+
+    document.getElementById(
+      "stat-total"
+    ).textContent = issues.length;
+
+
+    document.getElementById(
+      "stat-published"
+    ).textContent = published.length;
+
+
+    document.getElementById(
+      "stat-drafts"
+    ).textContent = drafts.length;
+
+
+    document.getElementById(
+      "stat-topics"
+    ).textContent = topics.size;
+
+
+    const recent =
+      document.getElementById(
+        "recent-issues"
+      );
+
+
+    const sorted =
+      [...issues]
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt) -
+            new Date(a.updatedAt)
+        )
+        .slice(0, 5);
+
+
+    if (!sorted.length) {
+
+      recent.innerHTML = `
+        <div class="empty">
+          No issues yet.<br>
+          Start writing your first issue.
+        </div>
+      `;
+
+      return;
+
+    }
+
+
+    recent.innerHTML =
+      sorted.map(issue => `
+
+        <div class="issue">
+
+          <div>
+
+            <div class="issue-title">
+              ${escapeHTML(issue.title)}
+            </div>
+
+            <div class="issue-meta">
+              ${escapeHTML(issue.topic)}
+              ·
+              ${formatDate(issue.updatedAt)}
+            </div>
+
+          </div>
+
+          <span class="status ${issue.status}">
+            ${issue.status}
+          </span>
+
+        </div>
+
+      `).join("");
+
+  }
+
+
+  function renderArticles() {
+
+    const container =
+      document.getElementById(
+        "articles-list"
+      );
+
+    const query =
+      (
+        document.getElementById(
+          "article-search"
+        )?.value || ""
+      )
+      .toLowerCase()
+      .trim();
+
+
+    const filtered =
+      issues.filter(issue => {
+
+        const searchable =
+          [
+            issue.title,
+            issue.excerpt,
+            issue.topic,
+            issue.content
+          ]
+          .join(" ")
+          .toLowerCase();
+
+        return searchable.includes(query);
+
+      });
+
+
+    if (!filtered.length) {
+
+      container.innerHTML = `
+        <div class="empty">
+          No articles found.
+        </div>
+      `;
+
+      return;
+
+    }
+
+
+    container.innerHTML =
+      filtered
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt) -
+            new Date(a.updatedAt)
+        )
+        .map(issue => `
+
+          <div class="article-row">
+
+            <div>
+
+              <div class="issue-title">
+                ${escapeHTML(issue.title)}
+              </div>
+
+              <div class="issue-meta">
+                ${escapeHTML(issue.topic)}
+                ·
+                ${formatDate(issue.updatedAt)}
+              </div>
+
+            </div>
+
+            <div class="article-actions">
+
+              <span class="status ${issue.status}">
+                ${issue.status}
+              </span>
+
+              <button
+                class="small-btn"
+                onclick="editIssue('${issue.id}')"
+              >
+                Edit
+              </button>
+
+              <button
+                class="small-btn"
+                onclick="deleteIssue('${issue.id}')"
+              >
+                Delete
+              </button>
+
+            </div>
+
+          </div>
+
+        `)
+        .join("");
+
+  }
+
+
+  function clearEditor() {
+
+    editingId = null;
+
+    document.getElementById(
+      "article-title"
+    ).value = "";
+
+    document.getElementById(
+      "article-excerpt"
+    ).value = "";
+
+    document.getElementById(
+      "article-content"
+    ).value = "";
+
+    document.getElementById(
+      "article-topic"
+    ).selectedIndex = 0;
+
+    document.getElementById(
+      "article-status"
+    ).value = "draft";
+
+    document.getElementById(
+      "article-author"
+    ).value = "The Upgrade";
+
+  }
+
+
+  function editIssue(id) {
+
+    const issue =
+      issues.find(
+        item => item.id === id
+      );
+
+    if (!issue) return;
+
+    editingId = id;
+
+    document.getElementById(
+      "article-title"
+    ).value = issue.title;
+
+    document.getElementById(
+      "article-excerpt"
+    ).value = issue.excerpt || "";
+
+    document.getElementById(
+      "article-content"
+    ).value = issue.content || "";
+
+    document.getElementById(
+      "article-topic"
+    ).value = issue.topic;
+
+    document.getElementById(
+      "article-status"
+    ).value = issue.status;
+
+    document.getElementById(
+      "article-author"
+    ).value =
+      issue.author || "The Upgrade";
+
+
+    showView("new");
+
+  }
+
+
+  window.editIssue = editIssue;
+
+
+  function deleteIssue(id) {
+
+    const issue =
+      issues.find(
+        item => item.id === id
+      );
+
+    if (!issue) return;
+
+
+    const confirmed =
+      confirm(
+        `Delete "${issue.title}"?`
+      );
+
+    if (!confirmed) return;
+
+
+    issues =
+      issues.filter(
+        item => item.id !== id
+      );
+
+    saveIssues();
+
+    showToast(
+      "Issue deleted.",
+      "success"
+    );
+
+  }
+
+
+  window.deleteIssue = deleteIssue;
+
+
+  document
+    .getElementById("save-issue")
+    .addEventListener("click", () => {
+
+      const title =
+        document.getElementById(
+          "article-title"
+        ).value.trim();
+
+      const excerpt =
+        document.getElementById(
+          "article-excerpt"
+        ).value.trim();
+
+      const content =
+        document.getElementById(
+          "article-content"
+        ).value.trim();
+
+      const topic =
+        document.getElementById(
+          "article-topic"
+        ).value;
+
+      const status =
+        document.getElementById(
+          "article-status"
+        ).value;
+
+      const author =
+        document.getElementById(
+          "article-author"
+        ).value.trim();
+
+
+      if (!title) {
+
+        showToast(
+          "Please enter an article title.",
+          "error"
+        );
+
+        return;
+
+      }
+
+
+      if (!content) {
+
+        showToast(
+          "Please write some content first.",
+          "error"
+        );
+
+        return;
+
+      }
+
+
+      const now =
+        new Date().toISOString();
+
+
+      if (editingId) {
+
+        const index =
+          issues.findIndex(
+            issue =>
+              issue.id === editingId
+          );
+
+        if (index !== -1) {
+
+          issues[index] = {
+
+            ...issues[index],
+
+            title,
+            excerpt,
+            content,
+            topic,
+            status,
+            author,
+            updatedAt: now
+
+          };
+
+        }
+
+        showToast(
+          "Issue updated.",
+          "success"
+        );
+
+      } else {
+
+        issues.push({
+
+          id:
+            "issue-" +
+            Date.now(),
+
+          title,
+          excerpt,
+          content,
+          topic,
+          status,
+          author,
+          createdAt: now,
+          updatedAt: now
+
+        });
+
+        showToast(
+          status === "published"
+            ? "Issue published."
+            : "Draft saved.",
+          "success"
+        );
+
+      }
+
+
+      saveIssues();
+
+      clearEditor();
+
+      showView("articles");
+
+    });
+
+
+  document
+    .getElementById("clear-editor")
+    .addEventListener(
+      "click",
+      clearEditor
+    );
+
+
+  document
+    .getElementById("article-search")
+    .addEventListener(
+      "input",
+      renderArticles
+    );
+
+
+  document
+    .querySelectorAll(".nav-btn[data-view]")
+    .forEach(button => {
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          showView(
+            button.dataset.view
+          );
+
+        }
+      );
+
+    });
+
+
+  document
+    .getElementById("mobile-menu")
+    .addEventListener(
+      "click",
+      () => {
+
+        document
+          .getElementById("sidebar")
+          .classList.toggle("open");
+
+      }
+    );
+
+
+  document
+    .getElementById("logout-btn")
+    .addEventListener(
+      "click",
+      () => {
+
+        showToast(
+          "Secure authentication will be connected next."
+        );
+
+      }
+    );
+
+
+  function formatDate(date) {
+
+    return new Date(date)
+      .toLocaleDateString(
+        "en-KE",
+        {
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        }
+      );
+
+  }
+
+
+  function escapeHTML(value) {
+
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  }
+
+
+  loadIssues();
+
+</script>
+
 </body>
 </html>
