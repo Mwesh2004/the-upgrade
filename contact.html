@@ -1,21 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
   <title>Contact — The Upgrade</title>
 
   <meta
     name="description"
-    content="Contact The Upgrade for questions, feedback, editorial enquiries, partnerships, and story ideas."
+    content="Contact The Upgrade. Send us your questions, suggestions, feedback, or collaboration ideas."
   >
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  >
 
   <link
-    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap"
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+    crossorigin
+  >
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600&display=swap"
     rel="stylesheet"
   >
 
@@ -27,588 +41,317 @@
 
     body {
       margin: 0;
-      background: #f7f5ef;
+      background: #f5f3ef;
       color: #111;
       font-family: "DM Sans", sans-serif;
-      line-height: 1.6;
+      line-height: 1.7;
     }
 
     header {
+      background: #111;
+      color: #fff;
       padding: 25px 7%;
-      border-bottom: 1px solid #ddd;
-
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
-    .logo {
+    header a {
+      color: #fff;
+      text-decoration: none;
       font-family: "Bebas Neue", sans-serif;
       font-size: 32px;
       letter-spacing: 1px;
-      color: #111;
-      text-decoration: none;
-    }
-
-    nav a {
-      color: #111;
-      text-decoration: none;
-      margin-left: 24px;
-      font-size: 14px;
     }
 
     main {
-      max-width: 1100px;
-      margin: 80px auto;
+      max-width: 900px;
+      margin: 70px auto;
       padding: 0 25px;
-    }
-
-    .kicker {
-      font-size: 12px;
-      letter-spacing: 2px;
-      font-weight: 700;
     }
 
     h1 {
       font-family: "Bebas Neue", sans-serif;
-      font-size: clamp(70px, 12vw, 140px);
-      line-height: .85;
-      margin: 20px 0 30px;
+      font-size: clamp(48px, 8vw, 80px);
+      line-height: 1;
+      margin-bottom: 15px;
     }
 
     .intro {
-      max-width: 650px;
-      font-size: 20px;
-      margin-bottom: 60px;
-    }
-
-    .contact-layout {
-      display: grid;
-      grid-template-columns: 0.8fr 1.2fr;
-      gap: 35px;
-      align-items: start;
-    }
-
-    .contact-info {
-      display: grid;
-      gap: 20px;
-    }
-
-    .contact-card {
-      border: 1px solid #ccc;
-      padding: 30px;
-      background: rgba(255,255,255,.25);
-    }
-
-    .contact-card h2 {
-      font-family: "Playfair Display", serif;
-      font-size: 26px;
-      margin: 0 0 12px;
-    }
-
-    .contact-card p {
-      font-size: 15px;
-    }
-
-    .contact-card a {
-      color: #111;
-      font-weight: 700;
+      color: #666;
+      font-size: 18px;
+      max-width: 700px;
+      margin-bottom: 45px;
     }
 
     .contact-form {
-      border: 1px solid #ccc;
-      padding: 40px;
-      background: #fff;
+      display: grid;
+      gap: 22px;
+      max-width: 700px;
     }
 
-    .form-title {
-      font-family: "Playfair Display", serif;
-      font-size: 32px;
-      margin: 0 0 10px;
+    .form-group {
+      display: grid;
+      gap: 8px;
     }
 
-    .form-description {
-      margin-bottom: 30px;
-      color: #555;
+    label {
+      font-weight: 600;
     }
 
-    .field {
-      margin-bottom: 20px;
-    }
-
-    .field label {
-      display: block;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-
-    .field input,
-    .field textarea {
+    input,
+    textarea {
       width: 100%;
-      border: 1px solid #bbb;
-      background: #fdfdfd;
-      padding: 15px;
-      font-family: "DM Sans", sans-serif;
-      font-size: 15px;
+      padding: 15px 16px;
+      border: 1px solid #ccc;
+      background: #fff;
       color: #111;
+      font: inherit;
+      border-radius: 0;
       outline: none;
     }
 
-    .field input:focus,
-    .field textarea:focus {
+    input:focus,
+    textarea:focus {
       border-color: #111;
     }
 
-    .field textarea {
-      min-height: 180px;
+    textarea {
+      min-height: 190px;
       resize: vertical;
     }
 
-    .submit-button {
+    button {
+      width: fit-content;
+      padding: 15px 32px;
       border: none;
       background: #111;
       color: #fff;
-      padding: 16px 28px;
-      font-family: "DM Sans", sans-serif;
-      font-size: 13px;
-      font-weight: 700;
+      font: inherit;
+      font-weight: 600;
       cursor: pointer;
-      transition: transform .2s ease;
     }
 
-    .submit-button:hover {
-      transform: translateY(-2px);
+    button:hover {
+      opacity: .8;
     }
 
-    .submit-button:disabled {
-      opacity: .6;
-      cursor: not-allowed;
+    .contact-email {
+      margin-top: 45px;
+      padding-top: 30px;
+      border-top: 1px solid #ccc;
     }
 
-    .form-status {
-      margin-top: 20px;
-      padding: 15px;
-      display: none;
-      font-size: 14px;
-    }
-
-    .form-status.success {
-      display: block;
-      background: #e9f7e9;
-      border: 1px solid #b9ddb9;
-    }
-
-    .form-status.error {
-      display: block;
-      background: #fff0f0;
-      border: 1px solid #e0b5b5;
-    }
-
-    .direct-email {
-      margin-top: 25px;
-      font-size: 14px;
-      color: #555;
+    .contact-email a {
+      color: #111;
+      font-weight: 600;
     }
 
     footer {
-      border-top: 1px solid #ddd;
-      padding: 35px 7%;
+      background: #111;
+      color: #aaa;
+      text-align: center;
+      padding: 30px 20px;
       margin-top: 80px;
-      font-size: 13px;
+      font-size: 14px;
     }
 
     footer a {
-      color: #111;
-      margin-right: 18px;
+      color: #fff;
+      margin: 0 8px;
+      text-decoration: none;
     }
 
-    @media (max-width: 800px) {
+    @media (max-width: 600px) {
 
-      header {
-        flex-direction: column;
-        gap: 15px;
+      main {
+        margin: 45px auto;
       }
 
-      nav a {
-        margin: 0 8px;
+      h1 {
+        font-size: 55px;
       }
 
-      .contact-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .contact-form {
-        padding: 25px;
+      .intro {
+        font-size: 16px;
       }
 
     }
 
   </style>
+
 </head>
+
 
 <body>
 
+
 <header>
 
-  <a href="/" class="logo">
+  <a href="/">
     THE UPGRADE
   </a>
-
-  <nav>
-    <a href="/">Home</a>
-    <a href="/privacy.html">Privacy</a>
-  </nav>
 
 </header>
 
 
 <main>
 
-  <div class="kicker">
-    GET IN TOUCH
-  </div>
-
   <h1>
-    Let's<br>
-    Talk.
+    Contact The Upgrade
   </h1>
 
+
   <p class="intro">
-    Have a story, question, idea, correction, collaboration proposal,
-    or something you think The Upgrade should know about?
-    We'd like to hear from you.
+
+    Have a question, suggestion, collaboration idea, feedback,
+    or just something you want to say?
+
+    Send us a message.
+
   </p>
 
 
-  <div class="contact-layout">
+  <!-- ==========================================
+       FORMSPREE CONTACT FORM
+  =========================================== -->
+
+  <form
+    class="contact-form"
+    action="https://formspree.io/f/xgawaadl"
+    method="POST"
+  >
 
 
-    <!-- CONTACT INFORMATION -->
+    <div class="form-group">
 
-    <div class="contact-info">
+      <label for="name">
+        Name
+      </label>
 
-      <div class="contact-card">
-
-        <h2>
-          General
-        </h2>
-
-        <p>
-          For general questions, feedback, suggestions, story ideas,
-          or anything else concerning The Upgrade.
-        </p>
-
-        <p>
-          <a href="mailto:theupgradeke@gmail.com">
-            theupgradeke@gmail.com
-          </a>
-        </p>
-
-      </div>
-
-
-      <div class="contact-card">
-
-        <h2>
-          Editorial
-        </h2>
-
-        <p>
-          Have a story idea, correction, contribution, or editorial
-          enquiry? Send it our way.
-        </p>
-
-        <p>
-          <a href="mailto:theupgradeke@gmail.com">
-            theupgradeke@gmail.com
-          </a>
-        </p>
-
-      </div>
-
-
-      <div class="contact-card">
-
-        <h2>
-          Partnerships
-        </h2>
-
-        <p>
-          For advertising, partnerships, collaborations, and
-          commercial enquiries.
-        </p>
-
-        <p>
-          <a href="mailto:theupgradeke@gmail.com">
-            theupgradeke@gmail.com
-          </a>
-        </p>
-
-      </div>
-
-
-      <div class="contact-card">
-
-        <h2>
-          Privacy
-        </h2>
-
-        <p>
-          For questions about privacy, cookies, advertising,
-          consent, or personal information.
-        </p>
-
-        <p>
-          <a href="mailto:theupgradeke@gmail.com">
-            theupgradeke@gmail.com
-          </a>
-        </p>
-
-      </div>
-
-    </div>
-
-
-    <!-- FORMSPREE CONTACT FORM -->
-
-    <div class="contact-form">
-
-      <h2 class="form-title">
-        Send us a message.
-      </h2>
-
-      <p class="form-description">
-        Fill out the form below and we'll get back to you.
-      </p>
-
-
-      <form
-        id="contact-form"
-        action="https://formspree.io/f/xgawaadl"
-        method="POST"
+      <input
+        id="name"
+        type="text"
+        name="name"
+        placeholder="Your name"
+        autocomplete="name"
+        required
       >
 
-        <!-- Name -->
-
-        <div class="field">
-
-          <label for="name">
-            Name
-          </label>
-
-          <input
-            type="text"
-            id="name"
-            name="name"
-            placeholder="Your name"
-            autocomplete="name"
-            required
-          >
-
-        </div>
+    </div>
 
 
-        <!-- Email -->
+    <div class="form-group">
 
-        <div class="field">
+      <label for="email">
+        Email
+      </label>
 
-          <label for="email">
-            Email
-          </label>
-
-          <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="you@example.com"
-            autocomplete="email"
-            required
-          >
-
-        </div>
-
-
-        <!-- Subject -->
-
-        <div class="field">
-
-          <label for="subject">
-            Subject
-          </label>
-
-          <input
-            type="text"
-            id="subject"
-            name="subject"
-            placeholder="What is this about?"
-            required
-          >
-
-        </div>
-
-
-        <!-- Message -->
-
-        <div class="field">
-
-          <label for="message">
-            Message
-          </label>
-
-          <textarea
-            id="message"
-            name="message"
-            placeholder="Write your message..."
-            required
-          ></textarea>
-
-        </div>
-
-
-        <!-- Formspree spam honeypot -->
-
-        <input
-          type="text"
-          name="_gotcha"
-          style="display:none"
-          tabindex="-1"
-          autocomplete="off"
-        >
-
-
-        <!-- Email subject -->
-
-        <input
-          type="hidden"
-          name="_subject"
-          value="New message from The Upgrade website"
-        >
-
-
-        <button
-          type="submit"
-          class="submit-button"
-          id="submit-button"
-        >
-          Send Message →
-        </button>
-
-
-        <div
-          id="form-status"
-          class="form-status"
-          role="status"
-          aria-live="polite"
-        ></div>
-
-      </form>
-
-
-      <p class="direct-email">
-
-        Prefer email?
-
-        <a href="mailto:theupgradeke@gmail.com">
-          theupgradeke@gmail.com
-        </a>
-
-      </p>
+      <input
+        id="email"
+        type="email"
+        name="email"
+        placeholder="your@email.com"
+        autocomplete="email"
+        required
+      >
 
     </div>
 
+
+    <div class="form-group">
+
+      <label for="subject">
+        Subject
+      </label>
+
+      <input
+        id="subject"
+        type="text"
+        name="subject"
+        placeholder="What is this about?"
+        required
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label for="message">
+        Message
+      </label>
+
+      <textarea
+        id="message"
+        name="message"
+        placeholder="Write your message..."
+        required
+      ></textarea>
+
+    </div>
+
+
+    <!-- Email subject shown in Formspree -->
+
+    <input
+      type="hidden"
+      name="_subject"
+      value="New Contact Message — The Upgrade"
+    >
+
+
+    <button type="submit">
+      Send Message →
+    </button>
+
+
+  </form>
+
+
+  <div class="contact-email">
+
+    <strong>
+      Prefer email?
+    </strong>
+
+    <p>
+
+      You can also reach The Upgrade directly at:
+
+    </p>
+
+    <a href="mailto:theupgradeke@gmail.com">
+
+      theupgradeke@gmail.com
+
+    </a>
+
   </div>
+
 
 </main>
 
 
 <footer>
 
-  <strong>THE UPGRADE</strong>
+  © 2026 The Upgrade ·
 
-  <p>
-    Real talk. Better choices. Keep evolving.
-  </p>
+  <a href="/privacy">
+    Privacy
+  </a>
 
-  <a href="/">Home</a>
-  <a href="/privacy.html">Privacy</a>
-  <a href="/terms.html">Terms</a>
-  <a href="/disclaimer.html">Disclaimer</a>
-  <a href="/contact.html">Contact</a>
+  <a href="/terms">
+    Terms
+  </a>
 
-  <p>
-    © 2026 The Upgrade. All rights reserved.
-  </p>
+  <a href="/disclaimer">
+    Disclaimer
+  </a>
+
+  <a href="/contact">
+    Contact
+  </a>
 
 </footer>
 
-
-<script>
-
-  const form = document.getElementById("contact-form");
-  const button = document.getElementById("submit-button");
-  const status = document.getElementById("form-status");
-
-  form.addEventListener("submit", async function(event) {
-
-    event.preventDefault();
-
-    button.disabled = true;
-    button.textContent = "Sending...";
-
-    status.className = "form-status";
-    status.textContent = "";
-
-    const formData = new FormData(form);
-
-    try {
-
-      const response = await fetch(form.action, {
-        method: "POST",
-        body: formData,
-        headers: {
-          "Accept": "application/json"
-        }
-      });
-
-      if (response.ok) {
-
-        form.reset();
-
-        status.className = "form-status success";
-
-        status.textContent =
-          "Message sent successfully. Thanks for reaching out to The Upgrade.";
-
-      } else {
-
-        const data = await response.json().catch(() => null);
-
-        status.className = "form-status error";
-
-        status.textContent =
-          data?.errors?.map(error => error.message).join(", ")
-          || "Something went wrong. Please try again or email us directly.";
-
-      }
-
-    } catch (error) {
-
-      status.className = "form-status error";
-
-      status.textContent =
-        "Unable to send your message right now. Please email theupgradeke@gmail.com.";
-
-    }
-
-    button.disabled = false;
-    button.textContent = "Send Message →";
-
-  });
-
-</script>
 
 </body>
 </html>
