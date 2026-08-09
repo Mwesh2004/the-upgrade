@@ -1,14 +1,5 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api"
-    },
-    {
-      "source": "/portal",
-      "destination": "/portal.html"
-    },
     {
       "source": "/privacy",
       "destination": "/privacy.html"
@@ -24,10 +15,6 @@
     {
       "source": "/contact",
       "destination": "/contact.html"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }
