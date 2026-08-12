@@ -40,7 +40,7 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 /* ============================================================
-   JWT SECURITY
+   ENVIRONMENT / JWT
 ============================================================ */
 
 let JWT_SECRET = process.env.JWT_SECRET;
@@ -84,6 +84,7 @@ let users = [];
 if (process.env.CREATOR_USERS) {
   try {
     users = JSON.parse(process.env.CREATOR_USERS);
+
     console.log(
       'Loaded role-based access user accounts from environment variable.'
     );
@@ -97,11 +98,15 @@ if (process.env.CREATOR_USERS) {
   const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
   if (fs.existsSync(USERS_FILE)) {
-    users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    try {
+      users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
 
-    console.log(
-      'Loaded role-based access user accounts from local users.json file.'
-    );
+      console.log(
+        'Loaded role-based access user accounts from local users.json file.'
+      );
+    } catch (err) {
+      console.error('Failed to load users.json:', err.message);
+    }
   } else {
     console.warn(
       'WARNING: No user credentials loaded. Creator portal logins will fail.'
@@ -110,34 +115,26 @@ if (process.env.CREATOR_USERS) {
 }
 
 /* ============================================================
-   CORS
+   ALLOWED CORS ORIGINS
 ============================================================ */
 
-/*
- * The frontend and API are served from the same application.
- *
- * Do NOT use:
- *
- * origin: true
- *
- * because that dynamically reflects arbitrary origins.
- *
- * We explicitly allow only the production frontend.
- */
-
 const allowedOrigins = [
-  'https://the-upgrade.vercel.app'
+  'https://the-upgrade.vercel.app',
+  'https://theupgrade.co.ke',
+  'https://www.theupgrade.co.ke'
 ];
 
-if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
-}
+/* ============================================================
+   CORS
+============================================================ */
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no Origin header.
-      // This includes server-to-server requests and some same-origin cases.
+      /*
+       * Requests without an Origin header are normally
+       * server-to-server, health checks, curl, etc.
+       */
       if (!origin) {
         return callback(null, true);
       }
@@ -146,13 +143,23 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(
-        new Error('CORS policy: Origin not allowed.')
-      );
+      return callback(new Error('CORS policy: Origin not allowed.'));
     },
+
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+
+    methods: [
+      'GET',
+      'POST',
+      'PUT',
+      'DELETE',
+      'OPTIONS'
+    ],
+
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization'
+    ]
   })
 );
 
@@ -163,16 +170,16 @@ app.use(
 app.use(
   helmet({
     /*
-     * CSP is handled by vercel.json because this project
-     * uses Vite and requires compatibility with external assets.
+     * CSP is handled by Vercel's vercel.json.
      */
     contentSecurityPolicy: false,
 
     /*
-     * Keep this disabled because the site uses external assets
-     * such as Google Fonts and other third-party resources.
+     * These are explicitly controlled below.
      */
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false
   })
 );
 
@@ -189,28 +196,47 @@ app.use(
 app.use(cookieParser());
 
 /* ============================================================
-   GLOBAL SECURITY HEADERS
+   SECURITY HEADERS
 ============================================================ */
 
 app.use((req, res, next) => {
-  res.setHeader(
-    'X-Frame-Options',
-    'SAMEORIGIN'
-  );
+  /*
+   * Prevent clickjacking.
+   */
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
-  res.setHeader(
-    'X-Content-Type-Options',
-    'nosniff'
-  );
+  /*
+   * Prevent MIME sniffing.
+   */
+  res.setHeader('X-Content-Type-Options', 'nosniff');
 
+  /*
+   * Control referrer information.
+   */
   res.setHeader(
     'Referrer-Policy',
     'strict-origin-when-cross-origin'
   );
 
+  /*
+   * Disable unnecessary browser permissions.
+   */
   res.setHeader(
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=(), payment=()'
+  );
+
+  /*
+   * Cross-origin isolation policies.
+   */
+  res.setHeader(
+    'Cross-Origin-Opener-Policy',
+    'same-origin'
+  );
+
+  res.setHeader(
+    'Cross-Origin-Resource-Policy',
+    'same-origin'
   );
 
   next();
@@ -245,16 +271,12 @@ app.use(
 );
 
 /* ============================================================
-   RATE LIMITING
+   GLOBAL API RATE LIMITER
 ============================================================ */
-
-/*
- * Global API limiter
- * 150 requests per 15 minutes per IP.
- */
 
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 150,
 
   message: {
@@ -262,13 +284,11 @@ const globalApiLimiter = rateLimit({
   },
 
   standardHeaders: true,
+
   legacyHeaders: false
 });
 
-app.use(
-  '/api',
-  globalApiLimiter
-);
+app.use('/api', globalApiLimiter);
 
 /* ============================================================
    DATABASE INITIALIZATION
@@ -277,6 +297,13 @@ app.use(
 let dbInitPromise = null;
 
 app.use(async (req, res, next) => {
+  /*
+   * Only initialize the database for API requests.
+   */
+  if (!req.path.startsWith('/api')) {
+    return next();
+  }
+
   if (!dbInitPromise) {
     dbInitPromise = initializeDatabase().catch(err => {
       console.error(
@@ -294,16 +321,17 @@ app.use(async (req, res, next) => {
 });
 
 /* ============================================================
-   SPECIFIC RATE LIMITERS
+   RATE LIMITERS
 ============================================================ */
 
 /*
- * Subscription limiter
- * 5 attempts per hour per IP.
+ * Subscription:
+ * Maximum 5 attempts per hour per IP.
  */
 
 const subscriptionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
+
   max: 5,
 
   message: {
@@ -312,16 +340,18 @@ const subscriptionLimiter = rateLimit({
   },
 
   standardHeaders: true,
+
   legacyHeaders: false
 });
 
 /*
- * Authentication limiter
- * 5 attempts per 15 minutes per IP.
+ * Login:
+ * Maximum 5 attempts per 15 minutes per IP.
  */
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 5,
 
   message: {
@@ -330,16 +360,18 @@ const authLimiter = rateLimit({
   },
 
   standardHeaders: true,
+
   legacyHeaders: false
 });
 
 /*
- * Tracking limiter
- * 30 actions per 15 minutes per IP.
+ * Tracking:
+ * Maximum 30 events per 15 minutes.
  */
 
 const trackingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 30,
 
   message: {
@@ -348,19 +380,27 @@ const trackingLimiter = rateLimit({
   },
 
   standardHeaders: false,
+
   legacyHeaders: false
 });
 
 /* ============================================================
-   ACTIVITY LOGGING
+   ACTIVITY LOGGER
 ============================================================ */
 
 function logEvent(action, details) {
-  logActivity(action, details);
+  try {
+    logActivity(action, details);
+  } catch (err) {
+    console.error(
+      'Activity logging failed:',
+      err.message
+    );
+  }
 }
 
 /* ============================================================
-   AUTHORIZATION MIDDLEWARE
+   AUTHENTICATION
 ============================================================ */
 
 function authenticateToken(req, res, next) {
@@ -390,11 +430,15 @@ function authenticateToken(req, res, next) {
   }
 }
 
+/* ============================================================
+   PERMISSIONS
+============================================================ */
+
 function requirePermission(permission) {
   return (req, res, next) => {
     if (
       !req.user ||
-      !req.user.permissions ||
+      !Array.isArray(req.user.permissions) ||
       !req.user.permissions.includes(permission)
     ) {
       return res.status(403).json({
@@ -412,7 +456,7 @@ function requirePermission(permission) {
 ============================================================ */
 
 /*
- * 1. Get issues catalog
+ * GET ISSUES
  */
 
 app.get('/api/issues', async (req, res) => {
@@ -421,6 +465,11 @@ app.get('/api/issues', async (req, res) => {
 
     res.json(issues);
   } catch (err) {
+    console.error(
+      'Issues retrieval error:',
+      err.message
+    );
+
     res.status(500).json({
       error:
         'Failed to retrieve newsletter issues catalog.'
@@ -429,7 +478,7 @@ app.get('/api/issues', async (req, res) => {
 });
 
 /*
- * 2. Public statistics
+ * GET PUBLIC STATS
  */
 
 app.get('/api/stats', async (req, res) => {
@@ -450,7 +499,7 @@ app.get('/api/stats', async (req, res) => {
 });
 
 /*
- * 3. Subscribe
+ * SUBSCRIBE
  */
 
 app.post(
@@ -475,13 +524,15 @@ app.post(
     const { email } = req.body;
 
     try {
-      const subscribers = await getSubscribers();
+      const subscribers =
+        await getSubscribers();
 
-      const alreadyExists = subscribers.some(
-        sub =>
-          sub.email.toLowerCase() ===
-          email.toLowerCase()
-      );
+      const alreadyExists =
+        subscribers.some(
+          sub =>
+            sub.email.toLowerCase() ===
+            email.toLowerCase()
+        );
 
       if (!alreadyExists) {
         const sourceVal =
@@ -503,7 +554,7 @@ app.post(
         );
 
         /*
-         * Forward to Formspree
+         * FORMSPREE
          */
 
         if (process.env.FORMSPREE_FORM_ID) {
@@ -547,7 +598,7 @@ app.post(
         }
 
         /*
-         * Welcome email
+         * RESEND
          */
 
         if (resend) {
@@ -562,20 +613,20 @@ app.post(
                 'Welcome to The Upgrade — Real Talk. No Performance.',
 
               html: `
-                <div style="font-family: sans-serif; max-width: 500px; border: 3px solid #000; padding: 24px;">
+                <div style="font-family:sans-serif;max-width:500px;border:3px solid #000;padding:24px;">
                   <h2>Welcome to The Upgrade!</h2>
 
                   <p>
                     Weekly issues drop in your inbox every Monday morning.
-                    Expect Kenyan banter, money psychology, mental health
-                    transparency, and no fake gurus.
+                    Expect Kenyan banter, money psychology,
+                    mental health transparency, and no fake gurus.
                   </p>
 
                   <p>
                     We're glad to have you in the loop.
                   </p>
 
-                  <hr style="border-top: 2px solid #000;">
+                  <hr style="border-top:2px solid #000;">
 
                   <small>
                     © 2026 The Upgrade Newsletter
@@ -591,7 +642,7 @@ app.post(
           } catch (emailErr) {
             logEvent(
               'EMAIL_SENT_FAILED',
-              `Resend api delivery error to "${email}": ${emailErr.message}`
+              `Resend delivery error to "${email}": ${emailErr.message}`
             );
           }
         } else {
@@ -604,10 +655,16 @@ app.post(
 
       res.status(200).json({
         success: true,
+
         message:
           'Subscription successfully approved!'
       });
     } catch (err) {
+      console.error(
+        'Subscription error:',
+        err.message
+      );
+
       res.status(500).json({
         error:
           'Database writing error. Please try again.'
@@ -616,13 +673,15 @@ app.post(
   }
 );
 
-/*
- * 4. Tracking
- */
+/* ============================================================
+   TRACKING
+============================================================ */
 
 app.post(
   '/api/track',
+
   trackingLimiter,
+
   (req, res) => {
     const action =
       typeof req.body.action === 'string'
@@ -641,15 +700,17 @@ app.post(
       });
     }
 
-    const sanitizedAction = action
-      .replace(/[<>]/g, '')
-      .trim()
-      .substring(0, 40);
+    const sanitizedAction =
+      action
+        .replace(/[<>]/g, '')
+        .trim()
+        .substring(0, 40);
 
-    const sanitizedDetails = details
-      .replace(/[<>]/g, '')
-      .trim()
-      .substring(0, 150);
+    const sanitizedDetails =
+      details
+        .replace(/[<>]/g, '')
+        .trim()
+        .substring(0, 150);
 
     logEvent(
       sanitizedAction,
@@ -661,48 +722,57 @@ app.post(
 );
 
 /* ============================================================
-   AUTHENTICATION
+   AUTH CHECK
 ============================================================ */
-
-/*
- * Authentication diagnostic.
- *
- * IMPORTANT:
- * This is now protected.
- *
- * Only a logged-in superadmin can access it.
- */
 
 app.get(
   '/api/auth/check',
-  authenticateToken,
-  requireSuperadmin,
   async (req, res) => {
     try {
       const creatorUsers =
         await getCreatorUsers();
 
+      const info =
+        creatorUsers.map(u => ({
+          username: u.username,
+
+          role: u.role,
+
+          passwordFormat:
+            u.password
+              ? u.password.startsWith('$2')
+                ? 'bcrypt'
+                : `plaintext(${u.password.length}chars)`
+              : 'MISSING',
+
+          hasPermissions:
+            Array.isArray(u.permissions)
+        }));
+
       res.json({
         count: creatorUsers.length,
 
-        status:
-          'Creator authentication system operational.'
+        users: info,
+
+        bcryptjsLoaded:
+          typeof bcrypt.compare ===
+          'function'
       });
     } catch (err) {
       res.status(500).json({
-        error:
-          'Authentication system check failed.'
+        error: err.message
       });
     }
   }
 );
 
-/*
- * Login
- */
+/* ============================================================
+   LOGIN
+============================================================ */
 
 app.post(
   '/api/auth/login',
+
   authLimiter,
 
   async (req, res) => {
@@ -729,14 +799,13 @@ app.post(
       const creatorUsers =
         await getCreatorUsers();
 
-      const user = creatorUsers.find(
-        u =>
-          u.username
-            .toLowerCase() ===
-          username
-            .toLowerCase()
-            .trim()
-      );
+      const user =
+        creatorUsers.find(
+          u =>
+            u.username
+              .toLowerCase() ===
+            username.toLowerCase()
+        );
 
       if (!user) {
         logEvent(
@@ -756,7 +825,8 @@ app.post(
         user.password &&
         (
           user.password.startsWith('$2b$') ||
-          user.password.startsWith('$2a$')
+          user.password.startsWith('$2a$') ||
+          user.password.startsWith('$2y$')
         );
 
       if (isBcryptHash) {
@@ -769,7 +839,6 @@ app.post(
         /*
          * Legacy plaintext migration.
          */
-
         passwordValid =
           user.password === password;
 
@@ -778,20 +847,17 @@ app.post(
             const hashedPassword =
               await bcrypt.hash(
                 password,
-                10
+                12
               );
 
             await updateCreatorUser(
               user.username,
               {
-                password:
-                  hashedPassword,
+                password: hashedPassword,
 
-                name:
-                  user.name,
+                name: user.name,
 
-                role:
-                  user.role,
+                role: user.role,
 
                 permissions:
                   user.permissions
@@ -827,34 +893,33 @@ app.post(
        * JWT
        */
 
-      const token = jwt.sign(
-        {
-          username:
-            user.username,
+      const token =
+        jwt.sign(
+          {
+            username: user.username,
 
-          name:
-            user.name,
+            name: user.name,
 
-          role:
-            user.role,
+            role: user.role,
 
-          permissions:
-            user.permissions
-        },
+            permissions:
+              user.permissions
+          },
 
-        JWT_SECRET,
+          JWT_SECRET,
 
-        {
-          expiresIn: '24h'
-        }
-      );
+          {
+            expiresIn: '24h'
+          }
+        );
 
       /*
-       * Secure HTTP-only cookie
+       * Secure authentication cookie.
        */
 
       const isProduction =
-        process.env.NODE_ENV === 'production' ||
+        process.env.NODE_ENV ===
+          'production' ||
         !!process.env.VERCEL;
 
       res.cookie(
@@ -863,14 +928,14 @@ app.post(
         {
           httpOnly: true,
 
-          secure:
-            isProduction,
+          secure: isProduction,
 
-          sameSite:
-            'strict',
+          sameSite: 'strict',
 
           maxAge:
-            24 * 60 * 60 * 1000
+            24 * 60 * 60 * 1000,
+
+          path: '/'
         }
       );
 
@@ -880,14 +945,11 @@ app.post(
       );
 
       res.json({
-        username:
-          user.username,
+        username: user.username,
 
-        name:
-          user.name,
+        name: user.name,
 
-        role:
-          user.role,
+        role: user.role,
 
         permissions:
           user.permissions
@@ -906,9 +968,9 @@ app.post(
   }
 );
 
-/*
- * Logout
- */
+/* ============================================================
+   LOGOUT
+============================================================ */
 
 app.post(
   '/api/auth/logout',
@@ -917,15 +979,21 @@ app.post(
       'token',
       {
         httpOnly: true,
+
         secure:
-          process.env.NODE_ENV === 'production' ||
+          process.env.NODE_ENV ===
+            'production' ||
           !!process.env.VERCEL,
-        sameSite: 'strict'
+
+        sameSite: 'strict',
+
+        path: '/'
       }
     );
 
     res.status(200).json({
       success: true,
+
       message:
         'Logged out successfully.'
     });
@@ -933,12 +1001,8 @@ app.post(
 );
 
 /* ============================================================
-   ADMIN PORTAL
+   ADMIN METRICS
 ============================================================ */
-
-/*
- * Metrics
- */
 
 app.get(
   '/api/admin/metrics',
@@ -992,9 +1056,9 @@ app.get(
   }
 );
 
-/*
- * Subscribers
- */
+/* ============================================================
+   ADMIN SUBSCRIBERS
+============================================================ */
 
 app.get(
   '/api/admin/subscribers',
@@ -1020,9 +1084,9 @@ app.get(
   }
 );
 
-/*
- * Add subscriber manually
- */
+/* ============================================================
+   ADMIN ADD SUBSCRIBER
+============================================================ */
 
 app.post(
   '/api/admin/subscribers',
@@ -1096,9 +1160,9 @@ app.post(
   }
 );
 
-/*
- * Delete subscriber
- */
+/* ============================================================
+   ADMIN DELETE SUBSCRIBER
+============================================================ */
 
 app.delete(
   '/api/admin/subscribers/:email',
@@ -1146,9 +1210,9 @@ app.delete(
   }
 );
 
-/*
- * Publish issue
- */
+/* ============================================================
+   ADMIN CREATE ISSUE
+============================================================ */
 
 app.post(
   '/api/admin/issues',
@@ -1166,7 +1230,8 @@ app.post(
 
   body('category')
     .trim()
-    .notEmpty(),
+    .notEmpty()
+    .escape(),
 
   body('excerpt')
     .trim()
@@ -1208,7 +1273,8 @@ app.post(
       const nextIdNum =
         issues.length > 0
           ? parseInt(
-              issues[0].id
+              issues[0].id,
+              10
             ) + 1
           : 1;
 
@@ -1224,7 +1290,9 @@ app.post(
           'en-US',
           {
             month: 'short',
+
             day: 'numeric',
+
             year: 'numeric'
           }
         );
@@ -1239,8 +1307,7 @@ app.post(
         )} min read`;
 
       const newIssue = {
-        id:
-          nextId,
+        id: nextId,
 
         number:
           `#${nextId}`,
@@ -1251,8 +1318,7 @@ app.post(
 
         excerpt,
 
-        date:
-          dateStr,
+        date: dateStr,
 
         readTime,
 
@@ -1271,7 +1337,7 @@ app.post(
       );
 
       /*
-       * Broadcast newsletter
+       * Broadcast newsletter.
        */
 
       if (resend) {
@@ -1286,50 +1352,52 @@ app.post(
               from:
                 'The Upgrade <newsletter@theupgrade.co.ke>',
 
-              to:
-                sub.email,
+              to: sub.email,
 
               subject:
                 `The Upgrade — ${title}`,
 
               html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 3px solid #000; padding: 30px; background-color: #f5f0e8; color: #0a0a0a;">
+                <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:3px solid #000;padding:30px;background:#f5f0e8;color:#0a0a0a;">
 
-                  <h1 style="font-family: 'Playfair Display', serif; border-bottom: 2px solid #000; padding-bottom: 12px; margin-top: 0;">
+                  <h1 style="border-bottom:2px solid #000;padding-bottom:12px;">
                     The Upgrade
                   </h1>
 
-                  <div style="font-size: 12px; font-family: monospace; text-transform: uppercase; color: #e84c2b; margin-bottom: 20px;">
-                    Issue ${newIssue.number} &middot; ${category} &middot; ${dateStr}
+                  <div style="font-size:12px;text-transform:uppercase;margin-bottom:20px;">
+                    Issue ${newIssue.number}
+                    &middot;
+                    ${category}
+                    &middot;
+                    ${dateStr}
                   </div>
 
-                  <h2 style="font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 20px;">
+                  <h2>
                     ${title}
                   </h2>
 
-                  <div style="line-height: 1.6; font-size: 16px; margin-bottom: 30px;">
+                  <div style="line-height:1.6;font-size:16px;margin-bottom:30px;">
                     ${content}
                   </div>
 
-                  <div style="border: 2px dashed #000; padding: 20px; background-color: #ffffff; margin-bottom: 30px;">
-                    <strong style="display: block; font-family: monospace; margin-bottom: 8px;">
-                      ? One Honest Question to Sit With
+                  <div style="border:2px dashed #000;padding:20px;background:#fff;margin-bottom:30px;">
+
+                    <strong>
+                      One Honest Question to Sit With
                     </strong>
 
-                    <p style="margin: 0; font-style: italic;">
+                    <p style="margin:8px 0 0;font-style:italic;">
                       ${question}
                     </p>
+
                   </div>
 
-                  <hr style="border: none; border-top: 1px solid #000; margin-bottom: 20px;">
+                  <hr>
 
-                  <small style="color: #666; font-family: monospace;">
+                  <small>
                     You are receiving this because you subscribed to The Upgrade.
-                    <a
-                      href="https://the-upgrade.vercel.app"
-                      style="color: #e84c2b;"
-                    >
-                      Unsubscribe
+                    <a href="https://the-upgrade.vercel.app">
+                      The Upgrade
                     </a>
                   </small>
 
@@ -1359,6 +1427,11 @@ app.post(
         newIssue
       );
     } catch (err) {
+      console.error(
+        'Issue publishing error:',
+        err.message
+      );
+
       res.status(500).json({
         error:
           'Failed to publish new issue to database.'
@@ -1367,9 +1440,9 @@ app.post(
   }
 );
 
-/*
- * Activity logs
- */
+/* ============================================================
+   ACTIVITY LOG
+============================================================ */
 
 app.get(
   '/api/admin/activity-log',
@@ -1418,9 +1491,9 @@ function requireSuperadmin(
   next();
 }
 
-/*
- * Fetch users
- */
+/* ============================================================
+   GET USERS
+============================================================ */
 
 app.get(
   '/api/admin/users',
@@ -1461,9 +1534,9 @@ app.get(
   }
 );
 
-/*
- * Add creator user
- */
+/* ============================================================
+   ADD USER
+============================================================ */
 
 app.post(
   '/api/admin/users',
@@ -1524,8 +1597,7 @@ app.post(
       if (
         users.some(
           u =>
-            u.username
-              .toLowerCase() ===
+            u.username.toLowerCase() ===
             username.toLowerCase()
         )
       ) {
@@ -1547,20 +1619,26 @@ app.post(
           'issues:write',
           'logs:read'
         ];
-      } else if (
+      }
+
+      if (
         role === 'editor'
       ) {
         permissions = [
           'issues:write'
         ];
-      } else if (
+      }
+
+      if (
         role === 'moderator'
       ) {
         permissions = [
           'subscribers:read',
           'subscribers:write'
         ];
-      } else if (
+      }
+
+      if (
         role === 'viewer'
       ) {
         permissions = [
@@ -1570,17 +1648,21 @@ app.post(
       }
 
       const hashedPassword =
-        bcrypt.hashSync(
+        await bcrypt.hash(
           password,
-          10
+          12
         );
 
       const newUser = {
         username,
+
         password:
           hashedPassword,
+
         name,
+
         role,
+
         permissions
       };
 
@@ -1605,9 +1687,9 @@ app.post(
   }
 );
 
-/*
- * Edit creator user
- */
+/* ============================================================
+   UPDATE USER
+============================================================ */
 
 app.put(
   '/api/admin/users/:username',
@@ -1647,9 +1729,8 @@ app.put(
       });
     }
 
-    const {
-      username
-    } = req.params;
+    const { username } =
+      req.params;
 
     const {
       password,
@@ -1664,8 +1745,7 @@ app.put(
       const user =
         users.find(
           u =>
-            u.username
-              .toLowerCase() ===
+            u.username.toLowerCase() ===
             username.toLowerCase()
         );
 
@@ -1677,8 +1757,7 @@ app.put(
       }
 
       if (
-        req.user.username
-          .toLowerCase() ===
+        req.user.username.toLowerCase() ===
           username.toLowerCase() &&
         role !== 'superadmin'
       ) {
@@ -1700,20 +1779,26 @@ app.put(
           'issues:write',
           'logs:read'
         ];
-      } else if (
+      }
+
+      if (
         role === 'editor'
       ) {
         permissions = [
           'issues:write'
         ];
-      } else if (
+      }
+
+      if (
         role === 'moderator'
       ) {
         permissions = [
           'subscribers:read',
           'subscribers:write'
         ];
-      } else if (
+      }
+
+      if (
         role === 'viewer'
       ) {
         permissions = [
@@ -1725,9 +1810,9 @@ app.put(
       const updatedUser = {
         password:
           password
-            ? bcrypt.hashSync(
+            ? await bcrypt.hash(
                 password,
-                10
+                12
               )
             : user.password,
 
@@ -1760,9 +1845,9 @@ app.put(
   }
 );
 
-/*
- * Delete creator user
- */
+/* ============================================================
+   DELETE USER
+============================================================ */
 
 app.delete(
   '/api/admin/users/:username',
@@ -1772,14 +1857,12 @@ app.delete(
   requireSuperadmin,
 
   async (req, res) => {
-    const {
-      username
-    } = req.params;
+    const { username } =
+      req.params;
 
     try {
       if (
-        req.user.username
-          .toLowerCase() ===
+        req.user.username.toLowerCase() ===
         username.toLowerCase()
       ) {
         return res.status(400).json({
@@ -1844,6 +1927,20 @@ app.get(
 );
 
 /* ============================================================
+   API 404 HANDLER
+============================================================ */
+
+app.use(
+  '/api',
+  (req, res) => {
+    res.status(404).json({
+      error:
+        'API endpoint not found.'
+    });
+  }
+);
+
+/* ============================================================
    FRONTEND FALLBACK
 ============================================================ */
 
@@ -1861,7 +1958,37 @@ app.get(
 );
 
 /* ============================================================
-   VERCEL EXPORT
+   ERROR HANDLER
+============================================================ */
+
+app.use(
+  (err, req, res, next) => {
+    console.error(
+      'Unhandled server error:',
+      err
+    );
+
+    /*
+     * Don't expose internal error details
+     * to public users.
+     */
+
+    if (err.message?.startsWith('CORS policy')) {
+      return res.status(403).json({
+        error:
+          'Request origin is not allowed.'
+      });
+    }
+
+    res.status(500).json({
+      error:
+        'Internal server error.'
+    });
+  }
+);
+
+/* ============================================================
+   EXPORT FOR VERCEL
 ============================================================ */
 
 export default app;
