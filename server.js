@@ -39,46 +39,51 @@ app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 3000;
 
-/* ============================================================
-   ENVIRONMENT / SECURITY CONFIGURATION
-============================================================ */
 
-const isProduction =
-  process.env.NODE_ENV === 'production' ||
-  !!process.env.VERCEL;
+// ============================================================
+// ENVIRONMENT / JWT SECURITY
+// ============================================================
 
 let JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  if (isProduction) {
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL
+  ) {
     console.error(
-      'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!'
+      'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.'
     );
 
     process.exit(1);
+  } else {
+    JWT_SECRET = crypto.randomBytes(32).toString('hex');
+
+    console.log(
+      'Generated random JWT_SECRET for development.'
+    );
   }
-
-  JWT_SECRET = crypto.randomBytes(32).toString('hex');
-
-  console.log(
-    'Generated random JWT_SECRET for development.'
-  );
 }
 
-/* ============================================================
-   CORS
-============================================================ */
+
+// ============================================================
+// CORS SECURITY
+// ============================================================
 
 const allowedOrigins = [
   'https://the-upgrade.vercel.app',
-  'https://theupgrade.co.ke',
-  'https://www.theupgrade.co.ke'
+
+  // Local development
+  'http://localhost:3000',
+  'http://localhost:3001'
 ];
 
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow server-to-server / same-origin requests with no Origin header
+    origin: (origin, callback) => {
+
+      // Allow requests that do not contain an Origin header.
+      // Useful for server-to-server requests and local tools.
       if (!origin) {
         return callback(null, true);
       }
@@ -87,8 +92,12 @@ app.use(
         return callback(null, true);
       }
 
+      console.warn(
+        `Blocked CORS request from origin: ${origin}`
+      );
+
       return callback(
-        new Error('CORS policy violation')
+        new Error('CORS policy: Origin not allowed.')
       );
     },
 
@@ -104,53 +113,41 @@ app.use(
 
     allowedHeaders: [
       'Content-Type',
-      'Authorization'
-    ]
+      'Authorization',
+      'Accept'
+    ],
+
+    optionsSuccessStatus: 204
   })
 );
 
-/* ============================================================
-   HELMET
-============================================================ */
+
+// ============================================================
+// HELMET SECURITY
+// ============================================================
 
 app.use(
   helmet({
+    // CSP is handled manually below because the Vite
+    // frontend may require inline resources.
     contentSecurityPolicy: false,
 
-    crossOriginEmbedderPolicy: false,
-
-    frameguard: {
-      action: 'deny'
-    },
-
-    noSniff: true,
-
-    referrerPolicy: {
-      policy: 'strict-origin-when-cross-origin'
-    }
+    // Disabled because external resources such as Google
+    // Fonts may be used by the frontend.
+    crossOriginEmbedderPolicy: false
   })
 );
 
-/* ============================================================
-   BODY PARSING
-============================================================ */
 
-app.use(
-  express.json({
-    limit: '10kb'
-  })
-);
-
-app.use(cookieParser());
-
-/* ============================================================
-   GLOBAL SECURITY HEADERS
-============================================================ */
+// ============================================================
+// BASIC SECURITY HEADERS
+// ============================================================
 
 app.use((req, res, next) => {
+
   res.setHeader(
     'X-Frame-Options',
-    'DENY'
+    'SAMEORIGIN'
   );
 
   res.setHeader(
@@ -178,75 +175,84 @@ app.use((req, res, next) => {
     'same-origin'
   );
 
-  // HSTS only makes sense over HTTPS.
-  if (isProduction) {
-    res.setHeader(
-      'Strict-Transport-Security',
-      'max-age=63072000; includeSubDomains; preload'
-    );
-  }
-
-  next();
-});
-
-/* ============================================================
-   CSP
-============================================================ */
-
-/*
-  IMPORTANT:
-
-  This CSP is intentionally handled by Express.
-
-  Do NOT add a second conflicting CSP in another server/config
-  file unless you know exactly why you need it.
-
-  'unsafe-inline' / 'unsafe-eval' may still be required by the
-  current Vite frontend depending on how the application is
-  bundled.
-
-  Once the frontend is confirmed not to require them, they
-  should be removed.
-*/
-
-app.use((req, res, next) => {
+  // Legacy browser protection.
   res.setHeader(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel.app https://*.google.com https://*.googletagmanager.com https://*.google-analytics.com",
-
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-
-      "font-src 'self' https://fonts.gstatic.com data:",
-
-      "img-src 'self' data: blob: https:",
-
-      "connect-src 'self' https: wss:",
-
-      "frame-src 'self' https:",
-
-      "object-src 'none'",
-
-      "base-uri 'self'",
-
-      "form-action 'self'",
-
-      "frame-ancestors 'none'",
-
-      "upgrade-insecure-requests"
-    ].join('; ')
+    'X-XSS-Protection',
+    '1; mode=block'
   );
 
   next();
 });
 
-/* ============================================================
-   MALFORMED JSON HANDLER
-============================================================ */
+
+// ============================================================
+// CONTENT SECURITY POLICY
+// ============================================================
+//
+// NOTE:
+// This policy still contains unsafe-inline and unsafe-eval
+// because the current Vite frontend may depend on them.
+//
+// Do NOT remove them blindly until the frontend has been
+// tested without them.
+// ============================================================
+
+app.use((req, res, next) => {
+
+  const csp = [
+    "default-src 'self'",
+
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel.app https://*.google.com https://*.googletagmanager.com https://*.google-analytics.com",
+
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+
+    "font-src 'self' https://fonts.gstatic.com data:",
+
+    "img-src 'self' data: blob: https:",
+
+    "connect-src 'self' https: wss:",
+
+    "frame-src 'self' https:",
+
+    "object-src 'none'",
+
+    "base-uri 'self'",
+
+    "form-action 'self'",
+
+    "frame-ancestors 'self'",
+
+    "upgrade-insecure-requests"
+  ].join('; ');
+
+  res.setHeader(
+    'Content-Security-Policy',
+    csp
+  );
+
+  next();
+});
+
+
+// ============================================================
+// BODY PARSING
+// ============================================================
+
+app.use(
+  express.json({
+    limit: '10kb'
+  })
+);
+
+app.use(cookieParser());
+
+
+// ============================================================
+// MALFORMED JSON HANDLER
+// ============================================================
 
 app.use((err, req, res, next) => {
+
   if (
     err instanceof SyntaxError &&
     err.status === 400 &&
@@ -260,9 +266,105 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-/* ============================================================
-   STATIC FRONTEND
-============================================================ */
+
+// ============================================================
+// RESEND
+// ============================================================
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+
+// ============================================================
+// DATA DIRECTORY
+// ============================================================
+
+const DATA_DIR = path.join(
+  __dirname,
+  'server',
+  'data'
+);
+
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, {
+    recursive: true
+  });
+}
+
+
+// ============================================================
+// LEGACY LOCAL USERS
+// ============================================================
+//
+// CREATOR_USERS should preferably be stored in Vercel
+// environment variables / database.
+// ============================================================
+
+let users = [];
+
+if (process.env.CREATOR_USERS) {
+
+  try {
+
+    users = JSON.parse(
+      process.env.CREATOR_USERS
+    );
+
+    console.log(
+      'Loaded role-based access user accounts from environment variable.'
+    );
+
+  } catch (err) {
+
+    console.error(
+      'Failed to parse CREATOR_USERS environment variable:',
+      err.message
+    );
+  }
+
+} else {
+
+  const USERS_FILE = path.join(
+    DATA_DIR,
+    'users.json'
+  );
+
+  if (fs.existsSync(USERS_FILE)) {
+
+    try {
+
+      users = JSON.parse(
+        fs.readFileSync(
+          USERS_FILE,
+          'utf8'
+        )
+      );
+
+      console.log(
+        'Loaded role-based access user accounts from local users.json file.'
+      );
+
+    } catch (err) {
+
+      console.error(
+        'Failed to load users.json:',
+        err.message
+      );
+    }
+
+  } else {
+
+    console.warn(
+      'WARNING: No user credentials loaded. Creator portal logins may fail.'
+    );
+  }
+}
+
+
+// ============================================================
+// STATIC FRONTEND
+// ============================================================
 
 app.use(
   express.static(
@@ -270,11 +372,14 @@ app.use(
   )
 );
 
-/* ============================================================
-   RATE LIMITING
-============================================================ */
 
+// ============================================================
+// RATE LIMITING
+// ============================================================
+
+// Global API limiter
 const globalApiLimiter = rateLimit({
+
   windowMs: 15 * 60 * 1000,
 
   max: 150,
@@ -286,11 +391,7 @@ const globalApiLimiter = rateLimit({
 
   standardHeaders: true,
 
-  legacyHeaders: false,
-
-  skip: (req) => {
-    return req.path === '/auth/status';
-  }
+  legacyHeaders: false
 });
 
 app.use(
@@ -298,18 +399,23 @@ app.use(
   globalApiLimiter
 );
 
-/* ============================================================
-   DATABASE INITIALIZATION
-============================================================ */
+
+// ============================================================
+// DATABASE INITIALIZATION
+// ============================================================
 
 let dbInitPromise = null;
 
 app.use(
   async (req, res, next) => {
+
     try {
+
       if (!dbInitPromise) {
+
         dbInitPromise =
-          initializeDatabase().catch((err) => {
+          initializeDatabase().catch(err => {
+
             console.error(
               'Database initialization failed:',
               err
@@ -324,7 +430,9 @@ app.use(
       await dbInitPromise;
 
       next();
+
     } catch (err) {
+
       console.error(
         'Database middleware error:',
         err
@@ -332,21 +440,20 @@ app.use(
 
       return res.status(503).json({
         error:
-          'Database service temporarily unavailable.'
+          'Database temporarily unavailable.'
       });
     }
   }
 );
 
-/* ============================================================
-   SPECIFIC RATE LIMITERS
-============================================================ */
 
-/*
-  Public subscription limiter
-*/
+// ============================================================
+// SPECIFIC RATE LIMITERS
+// ============================================================
 
+// Subscription
 const subscriptionLimiter = rateLimit({
+
   windowMs: 60 * 60 * 1000,
 
   max: 5,
@@ -361,11 +468,10 @@ const subscriptionLimiter = rateLimit({
   legacyHeaders: false
 });
 
-/*
-  Authentication limiter
-*/
 
+// Authentication
 const authLimiter = rateLimit({
+
   windowMs: 15 * 60 * 1000,
 
   max: 5,
@@ -380,11 +486,10 @@ const authLimiter = rateLimit({
   legacyHeaders: false
 });
 
-/*
-  Tracking limiter
-*/
 
+// Tracking
 const trackingLimiter = rateLimit({
+
   windowMs: 15 * 60 * 1000,
 
   max: 30,
@@ -399,66 +504,94 @@ const trackingLimiter = rateLimit({
   legacyHeaders: false
 });
 
-/* ============================================================
-   ACTIVITY LOGGING
-============================================================ */
+
+// ============================================================
+// LOGGING HELPER
+// ============================================================
 
 function logEvent(action, details) {
+
   try {
-    logActivity(action, details);
+
+    logActivity(
+      action,
+      details
+    );
+
   } catch (err) {
+
     console.error(
-      'Activity logging failed:',
-      err.message
+      'Activity logging error:',
+      err
     );
   }
 }
 
-/* ============================================================
-   AUTHENTICATION
-============================================================ */
 
-function authenticateToken(req, res, next) {
-  const token = req.cookies?.token;
+// ============================================================
+// AUTHENTICATION MIDDLEWARE
+// ============================================================
+
+function authenticateToken(
+  req,
+  res,
+  next
+) {
+
+  const token =
+    req.cookies?.token;
 
   if (!token) {
+
     return res.status(401).json({
       error:
-        'Authorization cookie missing. Access denied.'
+        'Authorization required.'
     });
   }
 
   try {
-    const verified = jwt.verify(
-      token,
-      JWT_SECRET
-    );
+
+    const verified =
+      jwt.verify(
+        token,
+        JWT_SECRET
+      );
 
     req.user = verified;
 
     next();
+
   } catch (err) {
+
     return res.status(401).json({
       error:
-        'Invalid or expired token session.'
+        'Invalid or expired authentication session.'
     });
   }
 }
 
-/* ============================================================
-   PERMISSION CHECK
-============================================================ */
 
-function requirePermission(permission) {
+// ============================================================
+// PERMISSION MIDDLEWARE
+// ============================================================
+
+function requirePermission(
+  permission
+) {
+
   return (req, res, next) => {
+
     if (
       !req.user ||
       !Array.isArray(req.user.permissions) ||
-      !req.user.permissions.includes(permission)
+      !req.user.permissions.includes(
+        permission
+      )
     ) {
+
       return res.status(403).json({
         error:
-          `Forbidden. Role-based clearance required: "${permission}"`
+          'Forbidden. Required permission is missing.'
       });
     }
 
@@ -466,24 +599,31 @@ function requirePermission(permission) {
   };
 }
 
-/* ============================================================
-   PUBLIC API
-============================================================ */
 
-/*
-  GET ISSUES
-*/
+// ============================================================
+// PUBLIC API
+// ============================================================
+
+
+// ------------------------------------------------------------
+// GET ISSUES
+// ------------------------------------------------------------
 
 app.get(
   '/api/issues',
   async (req, res) => {
+
     try {
-      const issues = await getIssues();
+
+      const issues =
+        await getIssues();
 
       res.json(issues);
+
     } catch (err) {
+
       console.error(
-        'Get issues error:',
+        'Issues retrieval error:',
         err
       );
 
@@ -495,14 +635,17 @@ app.get(
   }
 );
 
-/*
-  PUBLIC STATISTICS
-*/
+
+// ------------------------------------------------------------
+// PUBLIC STATISTICS
+// ------------------------------------------------------------
 
 app.get(
   '/api/stats',
   async (req, res) => {
+
     try {
+
       const subs =
         await getSubscribers();
 
@@ -510,24 +653,28 @@ app.get(
         await getIssues();
 
       res.json({
+
         totalSubscribers:
           subs.length,
 
         totalIssues:
           issues.length
       });
+
     } catch (err) {
+
       res.json({
         totalSubscribers: 0,
-        totalIssues: 12
+        totalIssues: 0
       });
     }
   }
 );
 
-/*
-  PUBLIC SUBSCRIPTION
-*/
+
+// ------------------------------------------------------------
+// SUBSCRIBE
+// ------------------------------------------------------------
 
 app.post(
   '/api/subscribe',
@@ -536,14 +683,18 @@ app.post(
 
   body('email')
     .isEmail()
-    .withMessage('Invalid email format')
+    .withMessage(
+      'Invalid email format'
+    )
     .normalizeEmail(),
 
   async (req, res) => {
+
     const errors =
       validationResult(req);
 
     if (!errors.isEmpty()) {
+
       return res.status(400).json({
         error:
           errors.array()[0].msg
@@ -554,17 +705,19 @@ app.post(
       req.body;
 
     try {
+
       const subscribers =
         await getSubscribers();
 
       const alreadyExists =
         subscribers.some(
-          (sub) =>
+          sub =>
             sub.email.toLowerCase() ===
             email.toLowerCase()
         );
 
       if (!alreadyExists) {
+
         const sourceVal =
           typeof req.body.source === 'string'
             ? req.body.source
@@ -580,17 +733,20 @@ app.post(
 
         logEvent(
           'SUBSCRIBE',
-          `New registration: "${email}" via ${sourceVal}`
+          `New registration via ${sourceVal}`
         );
 
-        /*
-          FORMSPREE
-        */
+
+        // ------------------------------------------------------
+        // FORMSPREE
+        // ------------------------------------------------------
 
         if (
           process.env.FORMSPREE_FORM_ID
         ) {
+
           try {
+
             await fetch(
               `https://formspree.io/f/${process.env.FORMSPREE_FORM_ID}`,
               {
@@ -600,13 +756,12 @@ app.post(
                   'Content-Type':
                     'application/json',
 
-                  Accept:
+                  'Accept':
                     'application/json'
                 },
 
                 body: JSON.stringify({
                   email,
-
                   source:
                     req.body.source ||
                     'Public Form',
@@ -619,9 +774,11 @@ app.post(
 
             logEvent(
               'FORMSPREE_FORWARD',
-              `Forwarded subscription "${email}" to Formspree`
+              'Subscription forwarded to Formspree'
             );
+
           } catch (formspreeErr) {
+
             logEvent(
               'FORMSPREE_FAILED',
               `Formspree forwarding failed: ${formspreeErr.message}`
@@ -629,20 +786,17 @@ app.post(
           }
         }
 
-        /*
-          RESEND WELCOME EMAIL
-        */
 
-        if (
-          process.env.RESEND_API_KEY
-        ) {
+        // ------------------------------------------------------
+        // RESEND WELCOME EMAIL
+        // ------------------------------------------------------
+
+        if (resend) {
+
           try {
-            const resend =
-              new Resend(
-                process.env.RESEND_API_KEY
-              );
 
             await resend.emails.send({
+
               from:
                 'The Upgrade <welcome@theupgrade.co.ke>',
 
@@ -653,12 +807,15 @@ app.post(
 
               html: `
                 <div style="font-family:sans-serif;max-width:500px;border:3px solid #000;padding:24px;">
-                  <h2>Welcome to The Upgrade!</h2>
+
+                  <h2>
+                    Welcome to The Upgrade!
+                  </h2>
 
                   <p>
                     Weekly issues drop in your inbox every Monday morning.
-                    Expect Kenyan banter, money psychology, mental health
-                    transparency, and no fake gurus.
+                    Expect Kenyan banter, money psychology,
+                    mental health transparency, and no fake gurus.
                   </p>
 
                   <p>
@@ -670,35 +827,43 @@ app.post(
                   <small>
                     © 2026 The Upgrade Newsletter
                   </small>
+
                 </div>
               `
             });
 
             logEvent(
               'EMAIL_SENT_SUCCESS',
-              `Verification email successfully sent to: "${email}" via Resend`
+              'Welcome email dispatched successfully.'
             );
+
           } catch (emailErr) {
+
             logEvent(
               'EMAIL_SENT_FAILED',
-              `Resend delivery error to "${email}": ${emailErr.message}`
+              `Resend delivery error: ${emailErr.message}`
             );
           }
+
         } else {
+
           logEvent(
             'EMAIL_SIMULATION',
-            `Mock email notification dispatched to: "${email}"`
+            'Mock welcome email notification dispatched.'
           );
         }
       }
 
       return res.status(200).json({
+
         success: true,
 
         message:
           'Subscription successfully approved!'
       });
+
     } catch (err) {
+
       console.error(
         'Subscription error:',
         err
@@ -712,9 +877,10 @@ app.post(
   }
 );
 
-/* ============================================================
-   TRACKING
-============================================================ */
+
+// ------------------------------------------------------------
+// TRACKING
+// ------------------------------------------------------------
 
 app.post(
   '/api/track',
@@ -722,6 +888,7 @@ app.post(
   trackingLimiter,
 
   (req, res) => {
+
     const action =
       typeof req.body.action === 'string'
         ? req.body.action
@@ -733,6 +900,7 @@ app.post(
         : '';
 
     if (!action || !details) {
+
       return res.status(400).json({
         error:
           'Missing or malformed action/details parameters.'
@@ -760,9 +928,15 @@ app.post(
   }
 );
 
-/* ============================================================
-   AUTH LOGIN
-============================================================ */
+
+// ============================================================
+// AUTHENTICATION
+// ============================================================
+
+
+// ------------------------------------------------------------
+// LOGIN
+// ------------------------------------------------------------
 
 app.post(
   '/api/auth/login',
@@ -770,6 +944,7 @@ app.post(
   authLimiter,
 
   async (req, res) => {
+
     const username =
       typeof req.body.username === 'string'
         ? req.body.username
@@ -784,6 +959,7 @@ app.post(
         : '';
 
     if (!username || !password) {
+
       return res.status(400).json({
         error:
           'Username and password fields are required.'
@@ -791,28 +967,23 @@ app.post(
     }
 
     try {
+
       const creatorUsers =
         await getCreatorUsers();
 
       const user =
         creatorUsers.find(
-          (u) =>
+          u =>
             typeof u.username === 'string' &&
             u.username.toLowerCase() ===
               username.toLowerCase()
         );
 
-      /*
-        IMPORTANT:
-
-        No user information is returned when
-        authentication fails.
-      */
-
       if (!user) {
+
         logEvent(
           'AUTH_FAILURE',
-          `Invalid login attempt`
+          'Invalid login attempt.'
         );
 
         return res.status(401).json({
@@ -821,13 +992,13 @@ app.post(
         });
       }
 
-      /*
-        Production security:
 
-        Only bcrypt passwords are accepted.
+      // --------------------------------------------------------
+      // PASSWORD VERIFICATION
+      // --------------------------------------------------------
 
-        Plaintext passwords are NOT supported.
-      */
+      let passwordValid =
+        false;
 
       const isBcryptHash =
         typeof user.password === 'string' &&
@@ -837,28 +1008,69 @@ app.post(
           user.password.startsWith('$2y$')
         );
 
-      if (!isBcryptHash) {
-        logEvent(
-          'AUTH_FAILURE',
-          `Invalid password configuration for account`
-        );
 
-        return res.status(401).json({
-          error:
-            'Incorrect username or password.'
-        });
+      if (isBcryptHash) {
+
+        passwordValid =
+          await bcrypt.compare(
+            password,
+            user.password
+          );
+
+      } else {
+
+        // Legacy plaintext migration
+        passwordValid =
+          user.password === password;
+
+        if (passwordValid) {
+
+          try {
+
+            const hashedPassword =
+              await bcrypt.hash(
+                password,
+                12
+              );
+
+            await updateCreatorUser(
+              user.username,
+              {
+                password:
+                  hashedPassword,
+
+                name:
+                  user.name,
+
+                role:
+                  user.role,
+
+                permissions:
+                  user.permissions
+              }
+            );
+
+            logEvent(
+              'SECURITY',
+              'Legacy password migrated to bcrypt.'
+            );
+
+          } catch (migrationErr) {
+
+            console.error(
+              'Password migration failed:',
+              migrationErr.message
+            );
+          }
+        }
       }
 
-      const passwordValid =
-        await bcrypt.compare(
-          password,
-          user.password
-        );
 
       if (!passwordValid) {
+
         logEvent(
           'AUTH_FAILURE',
-          `Invalid login attempt`
+          'Invalid password attempt.'
         );
 
         return res.status(401).json({
@@ -867,12 +1079,10 @@ app.post(
         });
       }
 
-      /*
-        JWT
 
-        Keep only the information required
-        by the admin application.
-      */
+      // --------------------------------------------------------
+      // JWT
+      // --------------------------------------------------------
 
       const token =
         jwt.sign(
@@ -895,19 +1105,22 @@ app.post(
           JWT_SECRET,
 
           {
-            expiresIn: '24h',
-
-            issuer:
-              'the-upgrade-admin',
-
-            audience:
-              'the-upgrade-admin'
+            expiresIn:
+              '24h'
           }
         );
 
-      /*
-        HTTP-only secure cookie
-      */
+
+      // --------------------------------------------------------
+      // SECURE COOKIE
+      // --------------------------------------------------------
+
+      const isProduction =
+        process.env.NODE_ENV ===
+          'production' ||
+        Boolean(
+          process.env.VERCEL
+        );
 
       res.cookie(
         'token',
@@ -915,23 +1128,28 @@ app.post(
         {
           httpOnly: true,
 
-          secure: isProduction,
+          secure:
+            isProduction,
 
-          sameSite: 'strict',
-
-          path: '/',
+          sameSite:
+            'strict',
 
           maxAge:
-            24 * 60 * 60 * 1000
+            24 * 60 * 60 * 1000,
+
+          path: '/'
         }
       );
 
+
       logEvent(
         'AUTH_SUCCESS',
-        `User "${user.username}" logged in successfully`
+        `User "${user.username}" logged in successfully.`
       );
 
+
       return res.json({
+
         username:
           user.username,
 
@@ -948,6 +1166,7 @@ app.post(
       });
 
     } catch (err) {
+
       console.error(
         'Login route error:',
         err
@@ -961,38 +1180,44 @@ app.post(
   }
 );
 
-/* ============================================================
-   LOGOUT
-============================================================ */
+
+// ------------------------------------------------------------
+// LOGOUT
+// ------------------------------------------------------------
 
 app.post(
   '/api/auth/logout',
   (req, res) => {
+
     res.clearCookie(
       'token',
       {
         httpOnly: true,
-
-        secure: isProduction,
-
+        secure:
+          process.env.NODE_ENV ===
+            'production' ||
+          Boolean(
+            process.env.VERCEL
+          ),
         sameSite: 'strict',
-
         path: '/'
       }
     );
 
     return res.status(200).json({
       success: true,
-
       message:
         'Logged out successfully.'
     });
   }
 );
 
-/* ============================================================
-   AUTH STATUS
-============================================================ */
+
+// ------------------------------------------------------------
+// AUTH STATUS
+// ------------------------------------------------------------
+// Protected. This replaces the need for /api/auth/check.
+// ------------------------------------------------------------
 
 app.get(
   '/api/auth/status',
@@ -1000,7 +1225,9 @@ app.get(
   authenticateToken,
 
   (req, res) => {
+
     return res.json({
+
       username:
         req.user.username,
 
@@ -1016,9 +1243,15 @@ app.get(
   }
 );
 
-/* ============================================================
-   ADMIN METRICS
-============================================================ */
+
+// ============================================================
+// ADMIN API
+// ============================================================
+
+
+// ------------------------------------------------------------
+// METRICS
+// ------------------------------------------------------------
 
 app.get(
   '/api/admin/metrics',
@@ -1030,11 +1263,14 @@ app.get(
   ),
 
   async (req, res) => {
+
     try {
+
       const subs =
         await getSubscribers();
 
       const metrics = {
+
         totalSubscribers:
           subs.length,
 
@@ -1065,7 +1301,14 @@ app.get(
       return res.json(
         metrics
       );
+
     } catch (err) {
+
+      console.error(
+        'Metrics error:',
+        err
+      );
+
       return res.status(500).json({
         error:
           'Failed to compile metrics.'
@@ -1074,9 +1317,10 @@ app.get(
   }
 );
 
-/* ============================================================
-   ADMIN SUBSCRIBERS
-============================================================ */
+
+// ------------------------------------------------------------
+// SUBSCRIBERS
+// ------------------------------------------------------------
 
 app.get(
   '/api/admin/subscribers',
@@ -1088,12 +1332,18 @@ app.get(
   ),
 
   async (req, res) => {
+
     try {
+
       const subs =
         await getSubscribers();
 
-      return res.json(subs);
+      return res.json(
+        subs
+      );
+
     } catch (err) {
+
       return res.status(500).json({
         error:
           'Failed to read subscribers registry.'
@@ -1102,9 +1352,10 @@ app.get(
   }
 );
 
-/*
-  ADD SUBSCRIBER
-*/
+
+// ------------------------------------------------------------
+// ADD SUBSCRIBER
+// ------------------------------------------------------------
 
 app.post(
   '/api/admin/subscribers',
@@ -1123,10 +1374,12 @@ app.post(
     .normalizeEmail(),
 
   async (req, res) => {
+
     const errors =
       validationResult(req);
 
     if (!errors.isEmpty()) {
+
       return res.status(400).json({
         error:
           errors.array()[0].msg
@@ -1137,16 +1390,18 @@ app.post(
       req.body;
 
     try {
+
       const subs =
         await getSubscribers();
 
       if (
         subs.some(
-          (sub) =>
+          sub =>
             sub.email.toLowerCase() ===
             email.toLowerCase()
         )
       ) {
+
         return res.status(400).json({
           error:
             'Email already exists in list.'
@@ -1160,7 +1415,7 @@ app.post(
 
       logEvent(
         'SUBSCRIBER_ADD',
-        `Manually registered subscriber by admin`
+        `Subscriber manually added by ${req.user.username}`
       );
 
       const updatedSubs =
@@ -1169,7 +1424,9 @@ app.post(
       return res.status(200).json(
         updatedSubs
       );
+
     } catch (err) {
+
       return res.status(500).json({
         error:
           'Failed to write subscriber data.'
@@ -1178,9 +1435,10 @@ app.post(
   }
 );
 
-/*
-  DELETE SUBSCRIBER
-*/
+
+// ------------------------------------------------------------
+// DELETE SUBSCRIBER
+// ------------------------------------------------------------
 
 app.delete(
   '/api/admin/subscribers/:email',
@@ -1192,16 +1450,19 @@ app.delete(
   ),
 
   async (req, res) => {
+
     const email =
       req.params.email;
 
     try {
+
       const deleted =
         await deleteSubscriber(
           email
         );
 
       if (!deleted) {
+
         return res.status(404).json({
           error:
             'Email not found in registry.'
@@ -1210,7 +1471,7 @@ app.delete(
 
       logEvent(
         'SUBSCRIBER_DELETE',
-        `Removed subscriber by admin`
+        `Subscriber deleted by ${req.user.username}`
       );
 
       const updatedSubs =
@@ -1219,7 +1480,9 @@ app.delete(
       return res.status(200).json(
         updatedSubs
       );
+
     } catch (err) {
+
       return res.status(500).json({
         error:
           'Failed to modify registry database.'
@@ -1228,9 +1491,10 @@ app.delete(
   }
 );
 
-/* ============================================================
-   CREATE NEWSLETTER ISSUE
-============================================================ */
+
+// ------------------------------------------------------------
+// CREATE / PUBLISH ISSUE
+// ------------------------------------------------------------
 
 app.post(
   '/api/admin/issues',
@@ -1266,10 +1530,12 @@ app.post(
     .escape(),
 
   async (req, res) => {
+
     const errors =
       validationResult(req);
 
     if (!errors.isEmpty()) {
+
       return res.status(400).json({
         error:
           'Please populate all fields with valid inputs.'
@@ -1285,6 +1551,7 @@ app.post(
     } = req.body;
 
     try {
+
       const issues =
         await getIssues();
 
@@ -1322,8 +1589,11 @@ app.post(
           )
         )} min read`;
 
+
       const newIssue = {
-        id: nextId,
+
+        id:
+          nextId,
 
         number:
           `#${nextId}`,
@@ -1344,27 +1614,25 @@ app.post(
         content
       };
 
+
       await addIssue(
         newIssue
       );
 
+
       logEvent(
         'CREATE_ISSUE',
-        `Creator published Issue #${nextId}: "${title}"`
+        `Creator "${req.user.username}" published Issue #${nextId}.`
       );
 
-      /*
-        BROADCAST NEWSLETTER
-      */
 
-      if (
-        process.env.RESEND_API_KEY
-      ) {
+      // --------------------------------------------------------
+      // BROADCAST NEWSLETTER
+      // --------------------------------------------------------
+
+      if (resend) {
+
         try {
-          const resend =
-            new Resend(
-              process.env.RESEND_API_KEY
-            );
 
           const subscribers =
             await getSubscribers();
@@ -1372,7 +1640,9 @@ app.post(
           for (
             const sub of subscribers
           ) {
+
             await resend.emails.send({
+
               from:
                 'The Upgrade <newsletter@theupgrade.co.ke>',
 
@@ -1389,7 +1659,7 @@ app.post(
                     The Upgrade
                   </h1>
 
-                  <div style="font-size:12px;margin-bottom:20px;">
+                  <div style="font-size:12px;text-transform:uppercase;margin-bottom:20px;">
                     Issue ${newIssue.number}
                     &middot;
                     ${category}
@@ -1411,7 +1681,7 @@ app.post(
                       One Honest Question to Sit With
                     </strong>
 
-                    <p>
+                    <p style="font-style:italic;">
                       ${question}
                     </p>
 
@@ -1420,8 +1690,7 @@ app.post(
                   <hr>
 
                   <small>
-                    You are receiving this because you subscribed
-                    to The Upgrade.
+                    You are receiving this because you subscribed to The Upgrade.
                   </small>
 
                 </div>
@@ -1430,29 +1699,35 @@ app.post(
 
             logEvent(
               'BROADCAST_SENT',
-              `Emailed Issue #${nextId}`
+              `Issue #${nextId} emailed to subscriber.`
             );
           }
+
         } catch (broadcastErr) {
+
           logEvent(
             'BROADCAST_FAILED',
-            `Broadcast delivery error for Issue #${nextId}: ${broadcastErr.message}`
+            `Broadcast delivery error: ${broadcastErr.message}`
           );
         }
+
       } else {
+
         logEvent(
           'BROADCAST_SIMULATOR',
-          `Mock broadcast for Issue #${nextId}`
+          `Mock broadcast for Issue #${nextId}.`
         );
       }
+
 
       return res.status(200).json(
         newIssue
       );
 
     } catch (err) {
+
       console.error(
-        'Issue publishing error:',
+        'Issue publication error:',
         err
       );
 
@@ -1464,9 +1739,10 @@ app.post(
   }
 );
 
-/* ============================================================
-   ACTIVITY LOG
-============================================================ */
+
+// ------------------------------------------------------------
+// ACTIVITY LOG
+// ------------------------------------------------------------
 
 app.get(
   '/api/admin/activity-log',
@@ -1478,12 +1754,18 @@ app.get(
   ),
 
   async (req, res) => {
+
     try {
+
       const logs =
         await getActivityLogs();
 
-      return res.json(logs);
+      return res.json(
+        logs
+      );
+
     } catch (err) {
+
       return res.status(500).json({
         error:
           'Failed to access logs.'
@@ -1492,32 +1774,36 @@ app.get(
   }
 );
 
-/* ============================================================
-   SUPERADMIN
-============================================================ */
+
+// ============================================================
+// SUPERADMIN
+// ============================================================
 
 function requireSuperadmin(
   req,
   res,
   next
 ) {
+
   if (
     !req.user ||
     req.user.role !==
       'superadmin'
   ) {
+
     return res.status(403).json({
       error:
-        'Forbidden. Superadmin role clearance required.'
+        'Forbidden. Superadmin access required.'
     });
   }
 
   next();
 }
 
-/* ============================================================
-   GET USERS
-============================================================ */
+
+// ------------------------------------------------------------
+// GET USERS
+// ------------------------------------------------------------
 
 app.get(
   '/api/admin/users',
@@ -1527,35 +1813,36 @@ app.get(
   requireSuperadmin,
 
   async (req, res) => {
+
     try {
+
       const users =
         await getCreatorUsers();
 
-      /*
-        NEVER return passwords.
-      */
-
       const sanitized =
         users.map(
-          (u) => ({
+          user => ({
+
             username:
-              u.username,
+              user.username,
 
             name:
-              u.name,
+              user.name,
 
             role:
-              u.role,
+              user.role,
 
             permissions:
-              u.permissions
+              user.permissions
           })
         );
 
       return res.json(
         sanitized
       );
+
     } catch (err) {
+
       return res.status(500).json({
         error:
           'Failed to retrieve creator users.'
@@ -1564,9 +1851,10 @@ app.get(
   }
 );
 
-/* ============================================================
-   CREATE USER
-============================================================ */
+
+// ------------------------------------------------------------
+// CREATE USER
+// ------------------------------------------------------------
 
 app.post(
   '/api/admin/users',
@@ -1603,10 +1891,12 @@ app.post(
     ]),
 
   async (req, res) => {
+
     const errors =
       validationResult(req);
 
     if (!errors.isEmpty()) {
+
       return res.status(400).json({
         error:
           errors.array()[0].msg
@@ -1621,27 +1911,32 @@ app.post(
     } = req.body;
 
     try {
+
       const users =
         await getCreatorUsers();
 
       if (
         users.some(
-          (u) =>
+          u =>
             u.username.toLowerCase() ===
             username.toLowerCase()
         )
       ) {
+
         return res.status(400).json({
           error:
             'Username already exists.'
         });
       }
 
+
       let permissions = [];
+
 
       if (
         role === 'superadmin'
       ) {
+
         permissions = [
           'metrics:read',
           'subscribers:read',
@@ -1649,33 +1944,34 @@ app.post(
           'issues:write',
           'logs:read'
         ];
-      }
 
-      if (
+      } else if (
         role === 'editor'
       ) {
+
         permissions = [
           'issues:write'
         ];
-      }
 
-      if (
+      } else if (
         role === 'moderator'
       ) {
+
         permissions = [
           'subscribers:read',
           'subscribers:write'
         ];
-      }
 
-      if (
+      } else if (
         role === 'viewer'
       ) {
+
         permissions = [
           'metrics:read',
           'logs:read'
         ];
       }
+
 
       const hashedPassword =
         await bcrypt.hash(
@@ -1683,7 +1979,9 @@ app.post(
           12
         );
 
+
       const newUser = {
+
         username,
 
         password:
@@ -1696,22 +1994,26 @@ app.post(
         permissions
       };
 
+
       await addCreatorUser(
         newUser
       );
 
+
       logEvent(
         'USER_ADD',
-        `Superadmin created user "${username}" with role "${role}"`
+        `Superadmin "${req.user.username}" created user "${username}".`
       );
+
 
       return res.json({
         success: true
       });
 
     } catch (err) {
+
       console.error(
-        'Create user error:',
+        'User creation error:',
         err
       );
 
@@ -1723,9 +2025,10 @@ app.post(
   }
 );
 
-/* ============================================================
-   UPDATE USER
-============================================================ */
+
+// ------------------------------------------------------------
+// UPDATE USER
+// ------------------------------------------------------------
 
 app.put(
   '/api/admin/users/:username',
@@ -1755,18 +2058,17 @@ app.put(
     ]),
 
   async (req, res) => {
+
     const errors =
       validationResult(req);
 
     if (!errors.isEmpty()) {
+
       return res.status(400).json({
         error:
           errors.array()[0].msg
       });
     }
-
-    const username =
-      req.params.username;
 
     const {
       password,
@@ -1774,45 +2076,52 @@ app.put(
       role
     } = req.body;
 
+    const username =
+      req.params.username;
+
+
     try {
+
       const users =
         await getCreatorUsers();
 
       const user =
         users.find(
-          (u) =>
+          u =>
             u.username.toLowerCase() ===
             username.toLowerCase()
         );
 
+
       if (!user) {
+
         return res.status(404).json({
           error:
             'User not found.'
         });
       }
 
-      /*
-        Prevent current superadmin
-        from removing their own role.
-      */
 
       if (
         req.user.username.toLowerCase() ===
           username.toLowerCase() &&
         role !== 'superadmin'
       ) {
+
         return res.status(400).json({
           error:
-            'You cannot change your own superadmin role.'
+            'You cannot remove your own superadmin role.'
         });
       }
 
+
       let permissions = [];
+
 
       if (
         role === 'superadmin'
       ) {
+
         permissions = [
           'metrics:read',
           'subscribers:read',
@@ -1820,35 +2129,37 @@ app.put(
           'issues:write',
           'logs:read'
         ];
-      }
 
-      if (
+      } else if (
         role === 'editor'
       ) {
+
         permissions = [
           'issues:write'
         ];
-      }
 
-      if (
+      } else if (
         role === 'moderator'
       ) {
+
         permissions = [
           'subscribers:read',
           'subscribers:write'
         ];
-      }
 
-      if (
+      } else if (
         role === 'viewer'
       ) {
+
         permissions = [
           'metrics:read',
           'logs:read'
         ];
       }
 
+
       const updatedUser = {
+
         password:
           password
             ? await bcrypt.hash(
@@ -1864,23 +2175,27 @@ app.put(
         permissions
       };
 
+
       await updateCreatorUser(
         username,
         updatedUser
       );
 
+
       logEvent(
         'USER_UPDATE',
-        `Superadmin updated user "${username}"`
+        `Superadmin "${req.user.username}" updated "${username}".`
       );
+
 
       return res.json({
         success: true
       });
 
     } catch (err) {
+
       console.error(
-        'Update user error:',
+        'User update error:',
         err
       );
 
@@ -1892,9 +2207,10 @@ app.put(
   }
 );
 
-/* ============================================================
-   DELETE USER
-============================================================ */
+
+// ------------------------------------------------------------
+// DELETE USER
+// ------------------------------------------------------------
 
 app.delete(
   '/api/admin/users/:username',
@@ -1904,61 +2220,69 @@ app.delete(
   requireSuperadmin,
 
   async (req, res) => {
+
     const username =
       req.params.username;
 
+
     try {
-      /*
-        Prevent self-deletion.
-      */
 
       if (
         req.user.username.toLowerCase() ===
         username.toLowerCase()
       ) {
+
         return res.status(400).json({
           error:
-            'Self-deletion is forbidden. You cannot delete your own active session.'
+            'Self-deletion is forbidden.'
         });
       }
+
 
       const deleted =
         await deleteCreatorUser(
           username
         );
 
+
       if (!deleted) {
+
         return res.status(404).json({
           error:
             'User not found.'
         });
       }
 
+
       logEvent(
         'USER_DELETE',
-        `Superadmin deleted creator user "${username}"`
+        `Superadmin "${req.user.username}" deleted "${username}".`
       );
+
 
       return res.json({
         success: true
       });
 
     } catch (err) {
+
       return res.status(500).json({
         error:
-          'Failed to delete user account.'
+          'Failed to delete creator user.'
       });
     }
   }
 );
 
-/* ============================================================
-   404 API HANDLER
-============================================================ */
+
+// ============================================================
+// API 404 HANDLER
+// ============================================================
 
 app.use(
   '/api',
   (req, res) => {
+
     return res.status(404).json({
       error:
         'API endpoint not found.'
@@ -1966,13 +2290,15 @@ app.use(
   }
 );
 
-/* ============================================================
-   FRONTEND FALLBACK
-============================================================ */
+
+// ============================================================
+// FRONTEND FALLBACK
+// ============================================================
 
 app.get(
   '*',
   (req, res) => {
+
     res.sendFile(
       path.join(
         __dirname,
@@ -1983,21 +2309,28 @@ app.get(
   }
 );
 
-/* ============================================================
-   ERROR HANDLER
-============================================================ */
+
+// ============================================================
+// GLOBAL ERROR HANDLER
+// ============================================================
 
 app.use(
   (err, req, res, next) => {
+
     console.error(
       'Unhandled server error:',
       err
     );
 
     if (
-      res.headersSent
+      err.message ===
+      'CORS policy: Origin not allowed.'
     ) {
-      return next(err);
+
+      return res.status(403).json({
+        error:
+          'Request blocked by CORS policy.'
+      });
     }
 
     return res.status(500).json({
@@ -2007,21 +2340,26 @@ app.use(
   }
 );
 
-/* ============================================================
-   EXPORT
-============================================================ */
+
+// ============================================================
+// EXPORT FOR VERCEL
+// ============================================================
 
 export default app;
 
-/* ============================================================
-   LOCAL SERVER
-============================================================ */
+
+// ============================================================
+// LOCAL SERVER
+// ============================================================
 
 if (!process.env.VERCEL) {
+
   app.listen(
     PORT,
     async () => {
+
       try {
+
         await initializeDatabase();
 
         console.log(
@@ -2046,6 +2384,7 @@ if (!process.env.VERCEL) {
         );
 
       } catch (err) {
+
         console.error(
           'Server boot error:',
           err.message
