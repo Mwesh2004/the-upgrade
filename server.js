@@ -39,35 +39,45 @@ app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 3000;
 
-/* ============================================================
-   ENVIRONMENT / JWT
-============================================================ */
+const SITE_URL = 'https://the-upgrade.vercel.app';
+
+/*
+|--------------------------------------------------------------------------
+| JWT SECRET
+|--------------------------------------------------------------------------
+*/
 
 let JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
   if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
     console.error(
-      'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!'
+      'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.'
     );
+
     process.exit(1);
-  } else {
-    JWT_SECRET = crypto.randomBytes(32).toString('hex');
-    console.log('Generated random JWT_SECRET for development.');
   }
+
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+
+  console.log('Generated random JWT_SECRET for development.');
 }
 
-/* ============================================================
-   RESEND
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| RESEND
+|--------------------------------------------------------------------------
+*/
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-/* ============================================================
-   DATA DIRECTORY
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| DATA DIRECTORY
+|--------------------------------------------------------------------------
+*/
 
 const DATA_DIR = path.join(__dirname, 'server', 'data');
 
@@ -75,9 +85,11 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-/* ============================================================
-   CREATOR USERS
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| CREATOR USERS
+|--------------------------------------------------------------------------
+*/
 
 let users = [];
 
@@ -114,26 +126,236 @@ if (process.env.CREATOR_USERS) {
   }
 }
 
-/* ============================================================
-   ALLOWED CORS ORIGINS
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| SECURITY HEADERS
+|--------------------------------------------------------------------------
+|
+| These are intentionally handled here instead of next.config.ts because
+| this application uses Vite + Express.
+|
+*/
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: {
+      policy: 'same-origin'
+    },
+    crossOriginResourcePolicy: {
+      policy: 'same-origin'
+    },
+    frameguard: {
+      action: 'sameorigin'
+    },
+    referrerPolicy: {
+      policy: 'strict-origin-when-cross-origin'
+    },
+    noSniff: true
+  })
+);
+
+/*
+|--------------------------------------------------------------------------
+| CUSTOM SECURITY HEADERS
+|--------------------------------------------------------------------------
+*/
+
+app.use((req, res, next) => {
+  /*
+   * Content Security Policy
+   *
+   * We remove unsafe-eval.
+   *
+   * unsafe-inline remains temporarily because the current Vite frontend
+   * may contain inline scripts/styles.
+   */
+
+  const csp = [
+    "default-src 'self'",
+
+    /*
+     * IMPORTANT:
+     * unsafe-eval has been removed.
+     */
+    [
+      "script-src",
+      "'self'",
+      "'unsafe-inline'",
+      'https://*.vercel.app',
+      'https://*.google.com',
+      'https://*.googletagmanager.com',
+      'https://*.google-analytics.com'
+    ].join(' '),
+
+    /*
+     * Styles
+     */
+    [
+      "style-src",
+      "'self'",
+      "'unsafe-inline'",
+      'https://fonts.googleapis.com'
+    ].join(' '),
+
+    /*
+     * Fonts
+     */
+    [
+      "font-src",
+      "'self'",
+      'https://fonts.gstatic.com',
+      'data:'
+    ].join(' '),
+
+    /*
+     * Images
+     */
+    [
+      "img-src",
+      "'self'",
+      'data:',
+      'blob:',
+      'https:'
+    ].join(' '),
+
+    /*
+     * API / fetch / websocket connections
+     */
+    [
+      "connect-src",
+      "'self'",
+      SITE_URL,
+      'https:',
+      'wss:'
+    ].join(' '),
+
+    /*
+     * Frames
+     */
+    [
+      "frame-src",
+      "'self'",
+      'https:'
+    ].join(' '),
+
+    /*
+     * Prevent plugins
+     */
+    "object-src 'none'",
+
+    /*
+     * Prevent base tag injection
+     */
+    "base-uri 'self'",
+
+    /*
+     * Forms may only submit to our own origin
+     */
+    "form-action 'self'",
+
+    /*
+     * Prevent other sites from framing this site.
+     *
+     * This is the CSP equivalent of X-Frame-Options.
+     */
+    "frame-ancestors 'self'",
+
+    /*
+     * Force HTTPS resources
+     */
+    'upgrade-insecure-requests'
+  ].join('; ');
+
+  res.setHeader('Content-Security-Policy', csp);
+
+  /*
+   * Clickjacking protection
+   */
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+
+  /*
+   * MIME sniffing protection
+   */
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  /*
+   * Referrer protection
+   */
+  res.setHeader(
+    'Referrer-Policy',
+    'strict-origin-when-cross-origin'
+  );
+
+  /*
+   * Browser feature restrictions
+   */
+  res.setHeader(
+    'Permissions-Policy',
+    [
+      'camera=()',
+      'microphone=()',
+      'geolocation=()',
+      'payment=()',
+      'usb=()',
+      'bluetooth=()',
+      'accelerometer=()',
+      'gyroscope=()',
+      'magnetometer=()'
+    ].join(', ')
+  );
+
+  /*
+   * Cross-origin isolation policies
+   */
+  res.setHeader(
+    'Cross-Origin-Opener-Policy',
+    'same-origin'
+  );
+
+  res.setHeader(
+    'Cross-Origin-Resource-Policy',
+    'same-origin'
+  );
+
+  /*
+   * Remove Express fingerprint.
+   */
+  res.removeHeader('X-Powered-By');
+
+  next();
+});
+
+/*
+|--------------------------------------------------------------------------
+| CORS
+|--------------------------------------------------------------------------
+|
+| DO NOT use:
+|
+| cors({
+|   origin: true
+| })
+|
+| because that can reflect arbitrary origins.
+|
+*/
 
 const allowedOrigins = [
-  'https://the-upgrade.vercel.app',
-  'https://theupgrade.co.ke',
-  'https://www.theupgrade.co.ke'
+  SITE_URL,
+  'http://localhost:3000',
+  'http://localhost:3001'
 ];
-
-/* ============================================================
-   CORS
-============================================================ */
 
 app.use(
   cors({
     origin: function (origin, callback) {
       /*
-       * Requests without an Origin header are normally
-       * server-to-server, health checks, curl, etc.
+       * Allow requests without Origin.
+       *
+       * This is required for things such as server-to-server requests,
+       * curl and some browser navigation scenarios.
        */
       if (!origin) {
         return callback(null, true);
@@ -143,7 +365,9 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error('CORS policy: Origin not allowed.'));
+      return callback(
+        new Error('CORS policy: origin not allowed.')
+      );
     },
 
     credentials: true,
@@ -163,29 +387,11 @@ app.use(
   })
 );
 
-/* ============================================================
-   HELMET
-============================================================ */
-
-app.use(
-  helmet({
-    /*
-     * CSP is handled by Vercel's vercel.json.
-     */
-    contentSecurityPolicy: false,
-
-    /*
-     * These are explicitly controlled below.
-     */
-    crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: false,
-    crossOriginResourcePolicy: false
-  })
-);
-
-/* ============================================================
-   BODY PARSING
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| BODY PARSERS
+|--------------------------------------------------------------------------
+*/
 
 app.use(
   express.json({
@@ -193,58 +399,20 @@ app.use(
   })
 );
 
+app.use(
+  express.urlencoded({
+    extended: false,
+    limit: '10kb'
+  })
+);
+
 app.use(cookieParser());
 
-/* ============================================================
-   SECURITY HEADERS
-============================================================ */
-
-app.use((req, res, next) => {
-  /*
-   * Prevent clickjacking.
-   */
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-
-  /*
-   * Prevent MIME sniffing.
-   */
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-
-  /*
-   * Control referrer information.
-   */
-  res.setHeader(
-    'Referrer-Policy',
-    'strict-origin-when-cross-origin'
-  );
-
-  /*
-   * Disable unnecessary browser permissions.
-   */
-  res.setHeader(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(), payment=()'
-  );
-
-  /*
-   * Cross-origin isolation policies.
-   */
-  res.setHeader(
-    'Cross-Origin-Opener-Policy',
-    'same-origin'
-  );
-
-  res.setHeader(
-    'Cross-Origin-Resource-Policy',
-    'same-origin'
-  );
-
-  next();
-});
-
-/* ============================================================
-   MALFORMED JSON HANDLER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| MALFORMED JSON HANDLER
+|--------------------------------------------------------------------------
+*/
 
 app.use((err, req, res, next) => {
   if (
@@ -257,26 +425,39 @@ app.use((err, req, res, next) => {
     });
   }
 
+  if (err.message?.startsWith('CORS policy')) {
+    return res.status(403).json({
+      error: 'Origin not allowed.'
+    });
+  }
+
   next(err);
 });
 
-/* ============================================================
-   STATIC FRONTEND
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| STATIC FRONTEND
+|--------------------------------------------------------------------------
+*/
 
 app.use(
   express.static(
-    path.join(__dirname, 'dist')
+    path.join(__dirname, 'dist'),
+    {
+      index: 'index.html',
+      maxAge: process.env.VERCEL ? '1h' : 0
+    }
   )
 );
 
-/* ============================================================
-   GLOBAL API RATE LIMITER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| RATE LIMITING
+|--------------------------------------------------------------------------
+*/
 
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-
   max: 150,
 
   message: {
@@ -284,54 +465,56 @@ const globalApiLimiter = rateLimit({
   },
 
   standardHeaders: true,
+  legacyHeaders: false,
 
-  legacyHeaders: false
+  skip: (req) => {
+    return !req.path.startsWith('/api');
+  }
 });
 
 app.use('/api', globalApiLimiter);
 
-/* ============================================================
-   DATABASE INITIALIZATION
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| DATABASE INITIALIZATION
+|--------------------------------------------------------------------------
+*/
 
 let dbInitPromise = null;
 
 app.use(async (req, res, next) => {
-  /*
-   * Only initialize the database for API requests.
-   */
-  if (!req.path.startsWith('/api')) {
-    return next();
-  }
+  try {
+    if (!dbInitPromise) {
+      dbInitPromise = initializeDatabase().catch((err) => {
+        console.error(
+          'Database initialization failed:',
+          err
+        );
 
-  if (!dbInitPromise) {
-    dbInitPromise = initializeDatabase().catch(err => {
-      console.error(
-        'Database initialization failed:',
-        err
-      );
+        dbInitPromise = null;
 
-      dbInitPromise = null;
+        throw err;
+      });
+    }
+
+    await dbInitPromise;
+
+    next();
+  } catch (err) {
+    res.status(503).json({
+      error: 'Database temporarily unavailable.'
     });
   }
-
-  await dbInitPromise;
-
-  next();
 });
 
-/* ============================================================
-   RATE LIMITERS
-============================================================ */
-
 /*
- * Subscription:
- * Maximum 5 attempts per hour per IP.
- */
+|--------------------------------------------------------------------------
+| SPECIFIC RATE LIMITERS
+|--------------------------------------------------------------------------
+*/
 
 const subscriptionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-
   max: 5,
 
   message: {
@@ -340,18 +523,11 @@ const subscriptionLimiter = rateLimit({
   },
 
   standardHeaders: true,
-
   legacyHeaders: false
 });
 
-/*
- * Login:
- * Maximum 5 attempts per 15 minutes per IP.
- */
-
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-
   max: 5,
 
   message: {
@@ -360,18 +536,11 @@ const authLimiter = rateLimit({
   },
 
   standardHeaders: true,
-
   legacyHeaders: false
 });
 
-/*
- * Tracking:
- * Maximum 30 events per 15 minutes.
- */
-
 const trackingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-
   max: 30,
 
   message: {
@@ -380,31 +549,31 @@ const trackingLimiter = rateLimit({
   },
 
   standardHeaders: false,
-
   legacyHeaders: false
 });
 
-/* ============================================================
-   ACTIVITY LOGGER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| LOGGING
+|--------------------------------------------------------------------------
+*/
 
 function logEvent(action, details) {
   try {
     logActivity(action, details);
   } catch (err) {
-    console.error(
-      'Activity logging failed:',
-      err.message
-    );
+    console.error('Activity log failed:', err.message);
   }
 }
 
-/* ============================================================
-   AUTHENTICATION
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| AUTHORIZATION
+|--------------------------------------------------------------------------
+*/
 
 function authenticateToken(req, res, next) {
-  const token = req.cookies.token;
+  const token = req.cookies?.token;
 
   if (!token) {
     return res.status(401).json({
@@ -430,10 +599,6 @@ function authenticateToken(req, res, next) {
   }
 }
 
-/* ============================================================
-   PERMISSIONS
-============================================================ */
-
 function requirePermission(permission) {
   return (req, res, next) => {
     if (
@@ -451,9 +616,25 @@ function requirePermission(permission) {
   };
 }
 
-/* ============================================================
-   PUBLIC API
-============================================================ */
+function requireSuperadmin(req, res, next) {
+  if (
+    !req.user ||
+    req.user.role !== 'superadmin'
+  ) {
+    return res.status(403).json({
+      error:
+        'Forbidden. Superadmin role clearance required.'
+    });
+  }
+
+  next();
+}
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC API
+|--------------------------------------------------------------------------
+*/
 
 /*
  * GET ISSUES
@@ -465,10 +646,7 @@ app.get('/api/issues', async (req, res) => {
 
     res.json(issues);
   } catch (err) {
-    console.error(
-      'Issues retrieval error:',
-      err.message
-    );
+    console.error(err);
 
     res.status(500).json({
       error:
@@ -478,7 +656,7 @@ app.get('/api/issues', async (req, res) => {
 });
 
 /*
- * GET PUBLIC STATS
+ * PUBLIC STATISTICS
  */
 
 app.get('/api/stats', async (req, res) => {
@@ -499,8 +677,10 @@ app.get('/api/stats', async (req, res) => {
 });
 
 /*
- * SUBSCRIBE
- */
+|--------------------------------------------------------------------------
+| SUBSCRIBE
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/subscribe',
@@ -567,14 +747,12 @@ app.post(
                 headers: {
                   'Content-Type':
                     'application/json',
-
                   Accept:
                     'application/json'
                 },
 
                 body: JSON.stringify({
                   email,
-
                   source:
                     req.body.source ||
                     'Public Form',
@@ -613,7 +791,7 @@ app.post(
                 'Welcome to The Upgrade — Real Talk. No Performance.',
 
               html: `
-                <div style="font-family:sans-serif;max-width:500px;border:3px solid #000;padding:24px;">
+                <div style="font-family:sans-serif;max-width:500px;border:3px solid #000;padding:24px">
                   <h2>Welcome to The Upgrade!</h2>
 
                   <p>
@@ -626,7 +804,7 @@ app.post(
                     We're glad to have you in the loop.
                   </p>
 
-                  <hr style="border-top:2px solid #000;">
+                  <hr style="border-top:2px solid #000">
 
                   <small>
                     © 2026 The Upgrade Newsletter
@@ -642,7 +820,7 @@ app.post(
           } catch (emailErr) {
             logEvent(
               'EMAIL_SENT_FAILED',
-              `Resend delivery error to "${email}": ${emailErr.message}`
+              `Resend api delivery error to "${email}": ${emailErr.message}`
             );
           }
         } else {
@@ -655,15 +833,11 @@ app.post(
 
       res.status(200).json({
         success: true,
-
         message:
           'Subscription successfully approved!'
       });
     } catch (err) {
-      console.error(
-        'Subscription error:',
-        err.message
-      );
+      console.error(err);
 
       res.status(500).json({
         error:
@@ -673,15 +847,15 @@ app.post(
   }
 );
 
-/* ============================================================
-   TRACKING
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| TRACKING
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/track',
-
   trackingLimiter,
-
   (req, res) => {
     const action =
       typeof req.body.action === 'string'
@@ -721,9 +895,11 @@ app.post(
   }
 );
 
-/* ============================================================
-   AUTH CHECK
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| AUTH CHECK
+|--------------------------------------------------------------------------
+*/
 
 app.get(
   '/api/auth/check',
@@ -735,7 +911,6 @@ app.get(
       const info =
         creatorUsers.map(u => ({
           username: u.username,
-
           role: u.role,
 
           passwordFormat:
@@ -751,12 +926,9 @@ app.get(
 
       res.json({
         count: creatorUsers.length,
-
         users: info,
-
         bcryptjsLoaded:
-          typeof bcrypt.compare ===
-          'function'
+          typeof bcrypt.compare === 'function'
       });
     } catch (err) {
       res.status(500).json({
@@ -766,15 +938,15 @@ app.get(
   }
 );
 
-/* ============================================================
-   LOGIN
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| LOGIN
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/auth/login',
-
   authLimiter,
-
   async (req, res) => {
     const username =
       typeof req.body.username === 'string'
@@ -785,7 +957,8 @@ app.post(
 
     const password =
       typeof req.body.password === 'string'
-        ? req.body.password.substring(0, 50)
+        ? req.body.password
+            .substring(0, 50)
         : '';
 
     if (!username || !password) {
@@ -802,8 +975,7 @@ app.post(
       const user =
         creatorUsers.find(
           u =>
-            u.username
-              .toLowerCase() ===
+            u.username.toLowerCase() ===
             username.toLowerCase()
         );
 
@@ -825,8 +997,7 @@ app.post(
         user.password &&
         (
           user.password.startsWith('$2b$') ||
-          user.password.startsWith('$2a$') ||
-          user.password.startsWith('$2y$')
+          user.password.startsWith('$2a$')
         );
 
       if (isBcryptHash) {
@@ -836,9 +1007,6 @@ app.post(
             user.password
           );
       } else {
-        /*
-         * Legacy plaintext migration.
-         */
         passwordValid =
           user.password === password;
 
@@ -847,13 +1015,14 @@ app.post(
             const hashedPassword =
               await bcrypt.hash(
                 password,
-                12
+                10
               );
 
             await updateCreatorUser(
               user.username,
               {
-                password: hashedPassword,
+                password:
+                  hashedPassword,
 
                 name: user.name,
 
@@ -863,14 +1032,9 @@ app.post(
                   user.permissions
               }
             );
-
-            logEvent(
-              'SECURITY',
-              `Auto-migrated password for user "${user.username}" from plaintext to bcrypt hash.`
-            );
           } catch (migrationErr) {
             console.error(
-              'Password hash migration failed:',
+              'Password migration failed:',
               migrationErr.message
             );
           }
@@ -889,19 +1053,12 @@ app.post(
         });
       }
 
-      /*
-       * JWT
-       */
-
       const token =
         jwt.sign(
           {
             username: user.username,
-
             name: user.name,
-
             role: user.role,
-
             permissions:
               user.permissions
           },
@@ -913,13 +1070,8 @@ app.post(
           }
         );
 
-      /*
-       * Secure authentication cookie.
-       */
-
       const isProduction =
-        process.env.NODE_ENV ===
-          'production' ||
+        process.env.NODE_ENV === 'production' ||
         !!process.env.VERCEL;
 
       res.cookie(
@@ -927,14 +1079,10 @@ app.post(
         token,
         {
           httpOnly: true,
-
           secure: isProduction,
-
           sameSite: 'strict',
-
           maxAge:
             24 * 60 * 60 * 1000,
-
           path: '/'
         }
       );
@@ -946,11 +1094,8 @@ app.post(
 
       res.json({
         username: user.username,
-
         name: user.name,
-
         role: user.role,
-
         permissions:
           user.permissions
       });
@@ -968,9 +1113,11 @@ app.post(
   }
 );
 
-/* ============================================================
-   LOGOUT
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| LOGOUT
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/auth/logout',
@@ -979,58 +1126,88 @@ app.post(
       'token',
       {
         httpOnly: true,
-
         secure:
           process.env.NODE_ENV ===
             'production' ||
           !!process.env.VERCEL,
-
         sameSite: 'strict',
-
         path: '/'
       }
     );
 
     res.status(200).json({
       success: true,
-
       message:
         'Logged out successfully.'
     });
   }
 );
 
-/* ============================================================
-   ADMIN METRICS
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| AUTH STATUS
+|--------------------------------------------------------------------------
+*/
+
+app.get(
+  '/api/auth/status',
+  authenticateToken,
+  (req, res) => {
+    res.json({
+      username:
+        req.user.username,
+
+      name:
+        req.user.name,
+
+      role:
+        req.user.role,
+
+      permissions:
+        req.user.permissions
+    });
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| ADMIN API
+|--------------------------------------------------------------------------
+|
+| These routes can remain even if you currently do not have an admin
+| dashboard. They are protected and cannot be accessed without a valid
+| authentication token and permissions.
+|
+*/
+
+/*
+|--------------------------------------------------------------------------
+| METRICS
+|--------------------------------------------------------------------------
+*/
 
 app.get(
   '/api/admin/metrics',
-
   authenticateToken,
-
-  requirePermission(
-    'metrics:read'
-  ),
-
+  requirePermission('metrics:read'),
   async (req, res) => {
     try {
       const subs =
         await getSubscribers();
 
-      const metrics = {
+      res.json({
         totalSubscribers:
           subs.length,
 
         openRate:
           subs.length > 0
             ? 76.5
-            : 0.0,
+            : 0,
 
         ctrRate:
           subs.length > 0
             ? 28.2
-            : 0.0,
+            : 0,
 
         growthData: [
           0,
@@ -1044,9 +1221,7 @@ app.get(
           ),
           subs.length
         ]
-      };
-
-      res.json(metrics);
+      });
     } catch (err) {
       res.status(500).json({
         error:
@@ -1056,19 +1231,18 @@ app.get(
   }
 );
 
-/* ============================================================
-   ADMIN SUBSCRIBERS
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| SUBSCRIBERS
+|--------------------------------------------------------------------------
+*/
 
 app.get(
   '/api/admin/subscribers',
-
   authenticateToken,
-
   requirePermission(
     'subscribers:read'
   ),
-
   async (req, res) => {
     try {
       const subs =
@@ -1084,9 +1258,11 @@ app.get(
   }
 );
 
-/* ============================================================
-   ADMIN ADD SUBSCRIBER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| ADD SUBSCRIBER
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/admin/subscribers',
@@ -1148,9 +1324,7 @@ app.post(
       const updatedSubs =
         await getSubscribers();
 
-      res.status(200).json(
-        updatedSubs
-      );
+      res.json(updatedSubs);
     } catch (err) {
       res.status(500).json({
         error:
@@ -1160,27 +1334,23 @@ app.post(
   }
 );
 
-/* ============================================================
-   ADMIN DELETE SUBSCRIBER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| DELETE SUBSCRIBER
+|--------------------------------------------------------------------------
+*/
 
 app.delete(
   '/api/admin/subscribers/:email',
-
   authenticateToken,
-
   requirePermission(
     'subscribers:write'
   ),
-
   async (req, res) => {
-    const { email } =
-      req.params;
-
     try {
       const deleted =
         await deleteSubscriber(
-          email
+          req.params.email
         );
 
       if (!deleted) {
@@ -1192,15 +1362,13 @@ app.delete(
 
       logEvent(
         'SUBSCRIBER_DELETE',
-        `Removed subscriber: "${email}" by admin "${req.user.username}"`
+        `Removed subscriber: "${req.params.email}" by admin "${req.user.username}"`
       );
 
       const updatedSubs =
         await getSubscribers();
 
-      res.status(200).json(
-        updatedSubs
-      );
+      res.json(updatedSubs);
     } catch (err) {
       res.status(500).json({
         error:
@@ -1210,9 +1378,11 @@ app.delete(
   }
 );
 
-/* ============================================================
-   ADMIN CREATE ISSUE
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| PUBLISH ISSUE
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/admin/issues',
@@ -1230,8 +1400,7 @@ app.post(
 
   body('category')
     .trim()
-    .notEmpty()
-    .escape(),
+    .notEmpty(),
 
   body('excerpt')
     .trim()
@@ -1273,8 +1442,7 @@ app.post(
       const nextIdNum =
         issues.length > 0
           ? parseInt(
-              issues[0].id,
-              10
+              issues[0].id
             ) + 1
           : 1;
 
@@ -1290,9 +1458,7 @@ app.post(
           'en-US',
           {
             month: 'short',
-
             day: 'numeric',
-
             year: 'numeric'
           }
         );
@@ -1308,22 +1474,13 @@ app.post(
 
       const newIssue = {
         id: nextId,
-
-        number:
-          `#${nextId}`,
-
+        number: `#${nextId}`,
         title,
-
         category,
-
         excerpt,
-
         date: dateStr,
-
         readTime,
-
         question,
-
         content
       };
 
@@ -1337,7 +1494,7 @@ app.post(
       );
 
       /*
-       * Broadcast newsletter.
+       * Broadcast email
        */
 
       if (resend) {
@@ -1358,35 +1515,29 @@ app.post(
                 `The Upgrade — ${title}`,
 
               html: `
-                <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:3px solid #000;padding:30px;background:#f5f0e8;color:#0a0a0a;">
+                <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:3px solid #000;padding:30px;background:#f5f0e8;color:#0a0a0a">
 
-                  <h1 style="border-bottom:2px solid #000;padding-bottom:12px;">
-                    The Upgrade
-                  </h1>
+                  <h1>The Upgrade</h1>
 
-                  <div style="font-size:12px;text-transform:uppercase;margin-bottom:20px;">
+                  <div style="font-size:12px;text-transform:uppercase;margin-bottom:20px">
                     Issue ${newIssue.number}
-                    &middot;
-                    ${category}
-                    &middot;
-                    ${dateStr}
+                    · ${category}
+                    · ${dateStr}
                   </div>
 
-                  <h2>
-                    ${title}
-                  </h2>
+                  <h2>${title}</h2>
 
-                  <div style="line-height:1.6;font-size:16px;margin-bottom:30px;">
+                  <div style="line-height:1.6;font-size:16px;margin-bottom:30px">
                     ${content}
                   </div>
 
-                  <div style="border:2px dashed #000;padding:20px;background:#fff;margin-bottom:30px;">
+                  <div style="border:2px dashed #000;padding:20px;background:#fff">
 
                     <strong>
-                      One Honest Question to Sit With
+                      ? One Honest Question to Sit With
                     </strong>
 
-                    <p style="margin:8px 0 0;font-style:italic;">
+                    <p>
                       ${question}
                     </p>
 
@@ -1396,8 +1547,8 @@ app.post(
 
                   <small>
                     You are receiving this because you subscribed to The Upgrade.
-                    <a href="https://the-upgrade.vercel.app">
-                      The Upgrade
+                    <a href="${SITE_URL}">
+                      Visit The Upgrade
                     </a>
                   </small>
 
@@ -1419,18 +1570,15 @@ app.post(
       } else {
         logEvent(
           'BROADCAST_SIMULATOR',
-          `Mock broadcast: Issue #${nextId} simulated email updates sent to all subscribers.`
+          `Mock broadcast: Issue #${nextId} simulated.`
         );
       }
 
-      res.status(200).json(
+      res.json(
         newIssue
       );
     } catch (err) {
-      console.error(
-        'Issue publishing error:',
-        err.message
-      );
+      console.error(err);
 
       res.status(500).json({
         error:
@@ -1440,19 +1588,16 @@ app.post(
   }
 );
 
-/* ============================================================
-   ACTIVITY LOG
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| ACTIVITY LOG
+|--------------------------------------------------------------------------
+*/
 
 app.get(
   '/api/admin/activity-log',
-
   authenticateToken,
-
-  requirePermission(
-    'logs:read'
-  ),
-
+  requirePermission('logs:read'),
   async (req, res) => {
     try {
       const logs =
@@ -1468,59 +1613,37 @@ app.get(
   }
 );
 
-/* ============================================================
-   SUPERADMIN
-============================================================ */
-
-function requireSuperadmin(
-  req,
-  res,
-  next
-) {
-  if (
-    !req.user ||
-    req.user.role !==
-      'superadmin'
-  ) {
-    return res.status(403).json({
-      error:
-        'Forbidden. Superadmin role clearance required.'
-    });
-  }
-
-  next();
-}
-
-/* ============================================================
-   GET USERS
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| USERS
+|--------------------------------------------------------------------------
+*/
 
 app.get(
   '/api/admin/users',
-
   authenticateToken,
-
   requireSuperadmin,
-
   async (req, res) => {
     try {
-      const users =
+      const creatorUsers =
         await getCreatorUsers();
 
       const sanitized =
-        users.map(u => ({
-          username:
-            u.username,
+        creatorUsers.map(
+          u => ({
+            username:
+              u.username,
 
-          name:
-            u.name,
+            name:
+              u.name,
 
-          role:
-            u.role,
+            role:
+              u.role,
 
-          permissions:
-            u.permissions
-        }));
+            permissions:
+              u.permissions
+          })
+        );
 
       res.json(
         sanitized
@@ -1534,9 +1657,11 @@ app.get(
   }
 );
 
-/* ============================================================
-   ADD USER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| ADD USER
+|--------------------------------------------------------------------------
+*/
 
 app.post(
   '/api/admin/users',
@@ -1591,11 +1716,11 @@ app.post(
     } = req.body;
 
     try {
-      const users =
+      const existingUsers =
         await getCreatorUsers();
 
       if (
-        users.some(
+        existingUsers.some(
           u =>
             u.username.toLowerCase() ===
             username.toLowerCase()
@@ -1648,31 +1773,23 @@ app.post(
       }
 
       const hashedPassword =
-        await bcrypt.hash(
+        bcrypt.hashSync(
           password,
-          12
+          10
         );
 
-      const newUser = {
+      await addCreatorUser({
         username,
-
         password:
           hashedPassword,
-
         name,
-
         role,
-
         permissions
-      };
-
-      await addCreatorUser(
-        newUser
-      );
+      });
 
       logEvent(
         'USER_ADD',
-        `Superadmin "${req.user.username}" created user: "${username}" with role: "${role}"`
+        `Superadmin "${req.user.username}" created user "${username}" with role "${role}"`
       );
 
       res.json({
@@ -1687,9 +1804,11 @@ app.post(
   }
 );
 
-/* ============================================================
-   UPDATE USER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| UPDATE USER
+|--------------------------------------------------------------------------
+*/
 
 app.put(
   '/api/admin/users/:username',
@@ -1729,8 +1848,9 @@ app.put(
       });
     }
 
-    const { username } =
-      req.params;
+    const {
+      username
+    } = req.params;
 
     const {
       password,
@@ -1739,11 +1859,11 @@ app.put(
     } = req.body;
 
     try {
-      const users =
+      const existingUsers =
         await getCreatorUsers();
 
       const user =
-        users.find(
+        existingUsers.find(
           u =>
             u.username.toLowerCase() ===
             username.toLowerCase()
@@ -1779,28 +1899,20 @@ app.put(
           'issues:write',
           'logs:read'
         ];
-      }
-
-      if (
+      } else if (
         role === 'editor'
       ) {
         permissions = [
           'issues:write'
         ];
-      }
-
-      if (
+      } else if (
         role === 'moderator'
       ) {
         permissions = [
           'subscribers:read',
           'subscribers:write'
         ];
-      }
-
-      if (
-        role === 'viewer'
-      ) {
+      } else {
         permissions = [
           'metrics:read',
           'logs:read'
@@ -1810,9 +1922,9 @@ app.put(
       const updatedUser = {
         password:
           password
-            ? await bcrypt.hash(
+            ? bcrypt.hashSync(
                 password,
-                12
+                10
               )
             : user.password,
 
@@ -1830,7 +1942,7 @@ app.put(
 
       logEvent(
         'USER_UPDATE',
-        `Superadmin "${req.user.username}" updated user details for: "${username}"`
+        `Superadmin "${req.user.username}" updated user "${username}"`
       );
 
       res.json({
@@ -1845,9 +1957,11 @@ app.put(
   }
 );
 
-/* ============================================================
-   DELETE USER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| DELETE USER
+|--------------------------------------------------------------------------
+*/
 
 app.delete(
   '/api/admin/users/:username',
@@ -1857,8 +1971,9 @@ app.delete(
   requireSuperadmin,
 
   async (req, res) => {
-    const { username } =
-      req.params;
+    const {
+      username
+    } = req.params;
 
     try {
       if (
@@ -1867,7 +1982,7 @@ app.delete(
       ) {
         return res.status(400).json({
           error:
-            'Self-deletion is forbidden. You cannot delete your own active session.'
+            'Self-deletion is forbidden.'
         });
       }
 
@@ -1885,7 +2000,7 @@ app.delete(
 
       logEvent(
         'USER_DELETE',
-        `Superadmin "${req.user.username}" deleted creator user: "${username}"`
+        `Superadmin "${req.user.username}" deleted creator user "${username}"`
       );
 
       res.json({
@@ -1900,49 +2015,29 @@ app.delete(
   }
 );
 
-/* ============================================================
-   AUTH STATUS
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| HEALTH CHECK
+|--------------------------------------------------------------------------
+*/
 
 app.get(
-  '/api/auth/status',
-
-  authenticateToken,
-
+  '/api/health',
   (req, res) => {
-    res.json({
-      username:
-        req.user.username,
-
-      name:
-        req.user.name,
-
-      role:
-        req.user.role,
-
-      permissions:
-        req.user.permissions
+    res.status(200).json({
+      status: 'ok',
+      service: 'The Upgrade API',
+      timestamp:
+        new Date().toISOString()
     });
   }
 );
 
-/* ============================================================
-   API 404 HANDLER
-============================================================ */
-
-app.use(
-  '/api',
-  (req, res) => {
-    res.status(404).json({
-      error:
-        'API endpoint not found.'
-    });
-  }
-);
-
-/* ============================================================
-   FRONTEND FALLBACK
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| FRONTEND FALLBACK
+|--------------------------------------------------------------------------
+*/
 
 app.get(
   '*',
@@ -1957,9 +2052,11 @@ app.get(
   }
 );
 
-/* ============================================================
-   ERROR HANDLER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| ERROR HANDLER
+|--------------------------------------------------------------------------
+*/
 
 app.use(
   (err, req, res, next) => {
@@ -1968,16 +2065,8 @@ app.use(
       err
     );
 
-    /*
-     * Don't expose internal error details
-     * to public users.
-     */
-
-    if (err.message?.startsWith('CORS policy')) {
-      return res.status(403).json({
-        error:
-          'Request origin is not allowed.'
-      });
+    if (res.headersSent) {
+      return next(err);
     }
 
     res.status(500).json({
@@ -1987,15 +2076,19 @@ app.use(
   }
 );
 
-/* ============================================================
-   EXPORT FOR VERCEL
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| EXPORT FOR VERCEL
+|--------------------------------------------------------------------------
+*/
 
 export default app;
 
-/* ============================================================
-   LOCAL SERVER
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| LOCAL DEVELOPMENT SERVER
+|--------------------------------------------------------------------------
+*/
 
 if (!process.env.VERCEL) {
   app.listen(
