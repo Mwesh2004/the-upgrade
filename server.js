@@ -39,20 +39,20 @@ app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 3000;
 
-const SITE_URL = 'https://the-upgrade.vercel.app';
+/* ============================================================
+   ENVIRONMENT / SECURITY CONFIGURATION
+============================================================ */
 
-/*
-|--------------------------------------------------------------------------
-| JWT SECRET
-|--------------------------------------------------------------------------
-*/
+const isProduction =
+  process.env.NODE_ENV === 'production' ||
+  !!process.env.VERCEL;
 
 let JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+  if (isProduction) {
     console.error(
-      'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.'
+      'CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!'
     );
 
     process.exit(1);
@@ -60,303 +60,25 @@ if (!JWT_SECRET) {
 
   JWT_SECRET = crypto.randomBytes(32).toString('hex');
 
-  console.log('Generated random JWT_SECRET for development.');
+  console.log(
+    'Generated random JWT_SECRET for development.'
+  );
 }
 
-/*
-|--------------------------------------------------------------------------
-| RESEND
-|--------------------------------------------------------------------------
-*/
-
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
-
-/*
-|--------------------------------------------------------------------------
-| DATA DIRECTORY
-|--------------------------------------------------------------------------
-*/
-
-const DATA_DIR = path.join(__dirname, 'server', 'data');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-/*
-|--------------------------------------------------------------------------
-| CREATOR USERS
-|--------------------------------------------------------------------------
-*/
-
-let users = [];
-
-if (process.env.CREATOR_USERS) {
-  try {
-    users = JSON.parse(process.env.CREATOR_USERS);
-
-    console.log(
-      'Loaded role-based access user accounts from environment variable.'
-    );
-  } catch (err) {
-    console.error(
-      'Failed to parse CREATOR_USERS environment variable:',
-      err.message
-    );
-  }
-} else {
-  const USERS_FILE = path.join(DATA_DIR, 'users.json');
-
-  if (fs.existsSync(USERS_FILE)) {
-    try {
-      users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-
-      console.log(
-        'Loaded role-based access user accounts from local users.json file.'
-      );
-    } catch (err) {
-      console.error('Failed to load users.json:', err.message);
-    }
-  } else {
-    console.warn(
-      'WARNING: No user credentials loaded. Creator portal logins will fail.'
-    );
-  }
-}
-
-/*
-|--------------------------------------------------------------------------
-| SECURITY HEADERS
-|--------------------------------------------------------------------------
-|
-| These are intentionally handled here instead of next.config.ts because
-| this application uses Vite + Express.
-|
-*/
-
-app.use(
-  helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: {
-      policy: 'same-origin'
-    },
-    crossOriginResourcePolicy: {
-      policy: 'same-origin'
-    },
-    frameguard: {
-      action: 'sameorigin'
-    },
-    referrerPolicy: {
-      policy: 'strict-origin-when-cross-origin'
-    },
-    noSniff: true
-  })
-);
-
-/*
-|--------------------------------------------------------------------------
-| CUSTOM SECURITY HEADERS
-|--------------------------------------------------------------------------
-*/
-
-app.use((req, res, next) => {
-  /*
-   * Content Security Policy
-   *
-   * We remove unsafe-eval.
-   *
-   * unsafe-inline remains temporarily because the current Vite frontend
-   * may contain inline scripts/styles.
-   */
-
-  const csp = [
-    "default-src 'self'",
-
-    /*
-     * IMPORTANT:
-     * unsafe-eval has been removed.
-     */
-    [
-      "script-src",
-      "'self'",
-      "'unsafe-inline'",
-      'https://*.vercel.app',
-      'https://*.google.com',
-      'https://*.googletagmanager.com',
-      'https://*.google-analytics.com'
-    ].join(' '),
-
-    /*
-     * Styles
-     */
-    [
-      "style-src",
-      "'self'",
-      "'unsafe-inline'",
-      'https://fonts.googleapis.com'
-    ].join(' '),
-
-    /*
-     * Fonts
-     */
-    [
-      "font-src",
-      "'self'",
-      'https://fonts.gstatic.com',
-      'data:'
-    ].join(' '),
-
-    /*
-     * Images
-     */
-    [
-      "img-src",
-      "'self'",
-      'data:',
-      'blob:',
-      'https:'
-    ].join(' '),
-
-    /*
-     * API / fetch / websocket connections
-     */
-    [
-      "connect-src",
-      "'self'",
-      SITE_URL,
-      'https:',
-      'wss:'
-    ].join(' '),
-
-    /*
-     * Frames
-     */
-    [
-      "frame-src",
-      "'self'",
-      'https:'
-    ].join(' '),
-
-    /*
-     * Prevent plugins
-     */
-    "object-src 'none'",
-
-    /*
-     * Prevent base tag injection
-     */
-    "base-uri 'self'",
-
-    /*
-     * Forms may only submit to our own origin
-     */
-    "form-action 'self'",
-
-    /*
-     * Prevent other sites from framing this site.
-     *
-     * This is the CSP equivalent of X-Frame-Options.
-     */
-    "frame-ancestors 'self'",
-
-    /*
-     * Force HTTPS resources
-     */
-    'upgrade-insecure-requests'
-  ].join('; ');
-
-  res.setHeader('Content-Security-Policy', csp);
-
-  /*
-   * Clickjacking protection
-   */
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-
-  /*
-   * MIME sniffing protection
-   */
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-
-  /*
-   * Referrer protection
-   */
-  res.setHeader(
-    'Referrer-Policy',
-    'strict-origin-when-cross-origin'
-  );
-
-  /*
-   * Browser feature restrictions
-   */
-  res.setHeader(
-    'Permissions-Policy',
-    [
-      'camera=()',
-      'microphone=()',
-      'geolocation=()',
-      'payment=()',
-      'usb=()',
-      'bluetooth=()',
-      'accelerometer=()',
-      'gyroscope=()',
-      'magnetometer=()'
-    ].join(', ')
-  );
-
-  /*
-   * Cross-origin isolation policies
-   */
-  res.setHeader(
-    'Cross-Origin-Opener-Policy',
-    'same-origin'
-  );
-
-  res.setHeader(
-    'Cross-Origin-Resource-Policy',
-    'same-origin'
-  );
-
-  /*
-   * Remove Express fingerprint.
-   */
-  res.removeHeader('X-Powered-By');
-
-  next();
-});
-
-/*
-|--------------------------------------------------------------------------
-| CORS
-|--------------------------------------------------------------------------
-|
-| DO NOT use:
-|
-| cors({
-|   origin: true
-| })
-|
-| because that can reflect arbitrary origins.
-|
-*/
+/* ============================================================
+   CORS
+============================================================ */
 
 const allowedOrigins = [
-  SITE_URL,
-  'http://localhost:3000',
-  'http://localhost:3001'
+  'https://the-upgrade.vercel.app',
+  'https://theupgrade.co.ke',
+  'https://www.theupgrade.co.ke'
 ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      /*
-       * Allow requests without Origin.
-       *
-       * This is required for things such as server-to-server requests,
-       * curl and some browser navigation scenarios.
-       */
+    origin(origin, callback) {
+      // Allow server-to-server / same-origin requests with no Origin header
       if (!origin) {
         return callback(null, true);
       }
@@ -366,7 +88,7 @@ app.use(
       }
 
       return callback(
-        new Error('CORS policy: origin not allowed.')
+        new Error('CORS policy violation')
       );
     },
 
@@ -387,11 +109,31 @@ app.use(
   })
 );
 
-/*
-|--------------------------------------------------------------------------
-| BODY PARSERS
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   HELMET
+============================================================ */
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+
+    crossOriginEmbedderPolicy: false,
+
+    frameguard: {
+      action: 'deny'
+    },
+
+    noSniff: true,
+
+    referrerPolicy: {
+      policy: 'strict-origin-when-cross-origin'
+    }
+  })
+);
+
+/* ============================================================
+   BODY PARSING
+============================================================ */
 
 app.use(
   express.json({
@@ -399,20 +141,110 @@ app.use(
   })
 );
 
-app.use(
-  express.urlencoded({
-    extended: false,
-    limit: '10kb'
-  })
-);
-
 app.use(cookieParser());
 
+/* ============================================================
+   GLOBAL SECURITY HEADERS
+============================================================ */
+
+app.use((req, res, next) => {
+  res.setHeader(
+    'X-Frame-Options',
+    'DENY'
+  );
+
+  res.setHeader(
+    'X-Content-Type-Options',
+    'nosniff'
+  );
+
+  res.setHeader(
+    'Referrer-Policy',
+    'strict-origin-when-cross-origin'
+  );
+
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=()'
+  );
+
+  res.setHeader(
+    'Cross-Origin-Opener-Policy',
+    'same-origin'
+  );
+
+  res.setHeader(
+    'Cross-Origin-Resource-Policy',
+    'same-origin'
+  );
+
+  // HSTS only makes sense over HTTPS.
+  if (isProduction) {
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=63072000; includeSubDomains; preload'
+    );
+  }
+
+  next();
+});
+
+/* ============================================================
+   CSP
+============================================================ */
+
 /*
-|--------------------------------------------------------------------------
-| MALFORMED JSON HANDLER
-|--------------------------------------------------------------------------
+  IMPORTANT:
+
+  This CSP is intentionally handled by Express.
+
+  Do NOT add a second conflicting CSP in another server/config
+  file unless you know exactly why you need it.
+
+  'unsafe-inline' / 'unsafe-eval' may still be required by the
+  current Vite frontend depending on how the application is
+  bundled.
+
+  Once the frontend is confirmed not to require them, they
+  should be removed.
 */
+
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel.app https://*.google.com https://*.googletagmanager.com https://*.google-analytics.com",
+
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+
+      "font-src 'self' https://fonts.gstatic.com data:",
+
+      "img-src 'self' data: blob: https:",
+
+      "connect-src 'self' https: wss:",
+
+      "frame-src 'self' https:",
+
+      "object-src 'none'",
+
+      "base-uri 'self'",
+
+      "form-action 'self'",
+
+      "frame-ancestors 'none'",
+
+      "upgrade-insecure-requests"
+    ].join('; ')
+  );
+
+  next();
+});
+
+/* ============================================================
+   MALFORMED JSON HANDLER
+============================================================ */
 
 app.use((err, req, res, next) => {
   if (
@@ -425,96 +257,98 @@ app.use((err, req, res, next) => {
     });
   }
 
-  if (err.message?.startsWith('CORS policy')) {
-    return res.status(403).json({
-      error: 'Origin not allowed.'
-    });
-  }
-
   next(err);
 });
 
-/*
-|--------------------------------------------------------------------------
-| STATIC FRONTEND
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   STATIC FRONTEND
+============================================================ */
 
 app.use(
   express.static(
-    path.join(__dirname, 'dist'),
-    {
-      index: 'index.html',
-      maxAge: process.env.VERCEL ? '1h' : 0
-    }
+    path.join(__dirname, 'dist')
   )
 );
 
-/*
-|--------------------------------------------------------------------------
-| RATE LIMITING
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   RATE LIMITING
+============================================================ */
 
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 150,
 
   message: {
-    error: 'Too many requests. Please try again later.'
+    error:
+      'Too many requests. Please try again later.'
   },
 
   standardHeaders: true,
+
   legacyHeaders: false,
 
   skip: (req) => {
-    return !req.path.startsWith('/api');
+    return req.path === '/auth/status';
   }
 });
 
-app.use('/api', globalApiLimiter);
+app.use(
+  '/api',
+  globalApiLimiter
+);
 
-/*
-|--------------------------------------------------------------------------
-| DATABASE INITIALIZATION
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   DATABASE INITIALIZATION
+============================================================ */
 
 let dbInitPromise = null;
 
-app.use(async (req, res, next) => {
-  try {
-    if (!dbInitPromise) {
-      dbInitPromise = initializeDatabase().catch((err) => {
-        console.error(
-          'Database initialization failed:',
-          err
-        );
+app.use(
+  async (req, res, next) => {
+    try {
+      if (!dbInitPromise) {
+        dbInitPromise =
+          initializeDatabase().catch((err) => {
+            console.error(
+              'Database initialization failed:',
+              err
+            );
 
-        dbInitPromise = null;
+            dbInitPromise = null;
 
-        throw err;
+            throw err;
+          });
+      }
+
+      await dbInitPromise;
+
+      next();
+    } catch (err) {
+      console.error(
+        'Database middleware error:',
+        err
+      );
+
+      return res.status(503).json({
+        error:
+          'Database service temporarily unavailable.'
       });
     }
-
-    await dbInitPromise;
-
-    next();
-  } catch (err) {
-    res.status(503).json({
-      error: 'Database temporarily unavailable.'
-    });
   }
-});
+);
+
+/* ============================================================
+   SPECIFIC RATE LIMITERS
+============================================================ */
 
 /*
-|--------------------------------------------------------------------------
-| SPECIFIC RATE LIMITERS
-|--------------------------------------------------------------------------
+  Public subscription limiter
 */
 
 const subscriptionLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
+
   max: 5,
 
   message: {
@@ -523,11 +357,17 @@ const subscriptionLimiter = rateLimit({
   },
 
   standardHeaders: true,
+
   legacyHeaders: false
 });
 
+/*
+  Authentication limiter
+*/
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 5,
 
   message: {
@@ -536,11 +376,17 @@ const authLimiter = rateLimit({
   },
 
   standardHeaders: true,
+
   legacyHeaders: false
 });
 
+/*
+  Tracking limiter
+*/
+
 const trackingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 30,
 
   message: {
@@ -548,29 +394,29 @@ const trackingLimiter = rateLimit({
       'Too many tracking events. Log activity throttled.'
   },
 
-  standardHeaders: false,
+  standardHeaders: true,
+
   legacyHeaders: false
 });
 
-/*
-|--------------------------------------------------------------------------
-| LOGGING
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ACTIVITY LOGGING
+============================================================ */
 
 function logEvent(action, details) {
   try {
     logActivity(action, details);
   } catch (err) {
-    console.error('Activity log failed:', err.message);
+    console.error(
+      'Activity logging failed:',
+      err.message
+    );
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| AUTHORIZATION
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   AUTHENTICATION
+============================================================ */
 
 function authenticateToken(req, res, next) {
   const token = req.cookies?.token;
@@ -599,6 +445,10 @@ function authenticateToken(req, res, next) {
   }
 }
 
+/* ============================================================
+   PERMISSION CHECK
+============================================================ */
+
 function requirePermission(permission) {
   return (req, res, next) => {
     if (
@@ -616,70 +466,67 @@ function requirePermission(permission) {
   };
 }
 
-function requireSuperadmin(req, res, next) {
-  if (
-    !req.user ||
-    req.user.role !== 'superadmin'
-  ) {
-    return res.status(403).json({
-      error:
-        'Forbidden. Superadmin role clearance required.'
-    });
-  }
-
-  next();
-}
+/* ============================================================
+   PUBLIC API
+============================================================ */
 
 /*
-|--------------------------------------------------------------------------
-| PUBLIC API
-|--------------------------------------------------------------------------
+  GET ISSUES
 */
 
-/*
- * GET ISSUES
- */
+app.get(
+  '/api/issues',
+  async (req, res) => {
+    try {
+      const issues = await getIssues();
 
-app.get('/api/issues', async (req, res) => {
-  try {
-    const issues = await getIssues();
+      res.json(issues);
+    } catch (err) {
+      console.error(
+        'Get issues error:',
+        err
+      );
 
-    res.json(issues);
-  } catch (err) {
-    console.error(err);
-
-    res.status(500).json({
-      error:
-        'Failed to retrieve newsletter issues catalog.'
-    });
+      res.status(500).json({
+        error:
+          'Failed to retrieve newsletter issues catalog.'
+      });
+    }
   }
-});
+);
 
 /*
- * PUBLIC STATISTICS
- */
+  PUBLIC STATISTICS
+*/
 
-app.get('/api/stats', async (req, res) => {
-  try {
-    const subs = await getSubscribers();
-    const issues = await getIssues();
+app.get(
+  '/api/stats',
+  async (req, res) => {
+    try {
+      const subs =
+        await getSubscribers();
 
-    res.json({
-      totalSubscribers: subs.length,
-      totalIssues: issues.length
-    });
-  } catch (err) {
-    res.json({
-      totalSubscribers: 0,
-      totalIssues: 12
-    });
+      const issues =
+        await getIssues();
+
+      res.json({
+        totalSubscribers:
+          subs.length,
+
+        totalIssues:
+          issues.length
+      });
+    } catch (err) {
+      res.json({
+        totalSubscribers: 0,
+        totalIssues: 12
+      });
+    }
   }
-});
+);
 
 /*
-|--------------------------------------------------------------------------
-| SUBSCRIBE
-|--------------------------------------------------------------------------
+  PUBLIC SUBSCRIPTION
 */
 
 app.post(
@@ -693,15 +540,18 @@ app.post(
     .normalizeEmail(),
 
   async (req, res) => {
-    const errors = validationResult(req);
+    const errors =
+      validationResult(req);
 
     if (!errors.isEmpty()) {
       return res.status(400).json({
-        error: errors.array()[0].msg
+        error:
+          errors.array()[0].msg
       });
     }
 
-    const { email } = req.body;
+    const { email } =
+      req.body;
 
     try {
       const subscribers =
@@ -709,7 +559,7 @@ app.post(
 
       const alreadyExists =
         subscribers.some(
-          sub =>
+          (sub) =>
             sub.email.toLowerCase() ===
             email.toLowerCase()
         );
@@ -734,10 +584,12 @@ app.post(
         );
 
         /*
-         * FORMSPREE
-         */
+          FORMSPREE
+        */
 
-        if (process.env.FORMSPREE_FORM_ID) {
+        if (
+          process.env.FORMSPREE_FORM_ID
+        ) {
           try {
             await fetch(
               `https://formspree.io/f/${process.env.FORMSPREE_FORM_ID}`,
@@ -747,12 +599,14 @@ app.post(
                 headers: {
                   'Content-Type':
                     'application/json',
+
                   Accept:
                     'application/json'
                 },
 
                 body: JSON.stringify({
                   email,
+
                   source:
                     req.body.source ||
                     'Public Form',
@@ -776,11 +630,18 @@ app.post(
         }
 
         /*
-         * RESEND
-         */
+          RESEND WELCOME EMAIL
+        */
 
-        if (resend) {
+        if (
+          process.env.RESEND_API_KEY
+        ) {
           try {
+            const resend =
+              new Resend(
+                process.env.RESEND_API_KEY
+              );
+
             await resend.emails.send({
               from:
                 'The Upgrade <welcome@theupgrade.co.ke>',
@@ -791,20 +652,20 @@ app.post(
                 'Welcome to The Upgrade — Real Talk. No Performance.',
 
               html: `
-                <div style="font-family:sans-serif;max-width:500px;border:3px solid #000;padding:24px">
+                <div style="font-family:sans-serif;max-width:500px;border:3px solid #000;padding:24px;">
                   <h2>Welcome to The Upgrade!</h2>
 
                   <p>
                     Weekly issues drop in your inbox every Monday morning.
-                    Expect Kenyan banter, money psychology,
-                    mental health transparency, and no fake gurus.
+                    Expect Kenyan banter, money psychology, mental health
+                    transparency, and no fake gurus.
                   </p>
 
                   <p>
                     We're glad to have you in the loop.
                   </p>
 
-                  <hr style="border-top:2px solid #000">
+                  <hr style="border-top:2px solid #000;">
 
                   <small>
                     © 2026 The Upgrade Newsletter
@@ -820,7 +681,7 @@ app.post(
           } catch (emailErr) {
             logEvent(
               'EMAIL_SENT_FAILED',
-              `Resend api delivery error to "${email}": ${emailErr.message}`
+              `Resend delivery error to "${email}": ${emailErr.message}`
             );
           }
         } else {
@@ -831,15 +692,19 @@ app.post(
         }
       }
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
+
         message:
           'Subscription successfully approved!'
       });
     } catch (err) {
-      console.error(err);
+      console.error(
+        'Subscription error:',
+        err
+      );
 
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Database writing error. Please try again.'
       });
@@ -847,15 +712,15 @@ app.post(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| TRACKING
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   TRACKING
+============================================================ */
 
 app.post(
   '/api/track',
+
   trackingLimiter,
+
   (req, res) => {
     const action =
       typeof req.body.action === 'string'
@@ -891,62 +756,19 @@ app.post(
       sanitizedDetails
     );
 
-    res.sendStatus(204);
+    return res.sendStatus(204);
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| AUTH CHECK
-|--------------------------------------------------------------------------
-*/
-
-app.get(
-  '/api/auth/check',
-  async (req, res) => {
-    try {
-      const creatorUsers =
-        await getCreatorUsers();
-
-      const info =
-        creatorUsers.map(u => ({
-          username: u.username,
-          role: u.role,
-
-          passwordFormat:
-            u.password
-              ? u.password.startsWith('$2')
-                ? 'bcrypt'
-                : `plaintext(${u.password.length}chars)`
-              : 'MISSING',
-
-          hasPermissions:
-            Array.isArray(u.permissions)
-        }));
-
-      res.json({
-        count: creatorUsers.length,
-        users: info,
-        bcryptjsLoaded:
-          typeof bcrypt.compare === 'function'
-      });
-    } catch (err) {
-      res.status(500).json({
-        error: err.message
-      });
-    }
-  }
-);
-
-/*
-|--------------------------------------------------------------------------
-| LOGIN
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   AUTH LOGIN
+============================================================ */
 
 app.post(
   '/api/auth/login',
+
   authLimiter,
+
   async (req, res) => {
     const username =
       typeof req.body.username === 'string'
@@ -958,7 +780,7 @@ app.post(
     const password =
       typeof req.body.password === 'string'
         ? req.body.password
-            .substring(0, 50)
+            .substring(0, 100)
         : '';
 
     if (!username || !password) {
@@ -974,15 +796,23 @@ app.post(
 
       const user =
         creatorUsers.find(
-          u =>
+          (u) =>
+            typeof u.username === 'string' &&
             u.username.toLowerCase() ===
-            username.toLowerCase()
+              username.toLowerCase()
         );
+
+      /*
+        IMPORTANT:
+
+        No user information is returned when
+        authentication fails.
+      */
 
       if (!user) {
         logEvent(
           'AUTH_FAILURE',
-          `Invalid login credentials attempt for username: "${username}"`
+          `Invalid login attempt`
         );
 
         return res.status(401).json({
@@ -991,60 +821,44 @@ app.post(
         });
       }
 
-      let passwordValid = false;
+      /*
+        Production security:
+
+        Only bcrypt passwords are accepted.
+
+        Plaintext passwords are NOT supported.
+      */
 
       const isBcryptHash =
-        user.password &&
+        typeof user.password === 'string' &&
         (
           user.password.startsWith('$2b$') ||
-          user.password.startsWith('$2a$')
+          user.password.startsWith('$2a$') ||
+          user.password.startsWith('$2y$')
         );
 
-      if (isBcryptHash) {
-        passwordValid =
-          await bcrypt.compare(
-            password,
-            user.password
-          );
-      } else {
-        passwordValid =
-          user.password === password;
+      if (!isBcryptHash) {
+        logEvent(
+          'AUTH_FAILURE',
+          `Invalid password configuration for account`
+        );
 
-        if (passwordValid) {
-          try {
-            const hashedPassword =
-              await bcrypt.hash(
-                password,
-                10
-              );
-
-            await updateCreatorUser(
-              user.username,
-              {
-                password:
-                  hashedPassword,
-
-                name: user.name,
-
-                role: user.role,
-
-                permissions:
-                  user.permissions
-              }
-            );
-          } catch (migrationErr) {
-            console.error(
-              'Password migration failed:',
-              migrationErr.message
-            );
-          }
-        }
+        return res.status(401).json({
+          error:
+            'Incorrect username or password.'
+        });
       }
+
+      const passwordValid =
+        await bcrypt.compare(
+          password,
+          user.password
+        );
 
       if (!passwordValid) {
         logEvent(
           'AUTH_FAILURE',
-          `Invalid login credentials attempt for username: "${username}"`
+          `Invalid login attempt`
         );
 
         return res.status(401).json({
@@ -1053,59 +867,93 @@ app.post(
         });
       }
 
+      /*
+        JWT
+
+        Keep only the information required
+        by the admin application.
+      */
+
       const token =
         jwt.sign(
           {
-            username: user.username,
-            name: user.name,
-            role: user.role,
+            username:
+              user.username,
+
+            name:
+              user.name,
+
+            role:
+              user.role,
+
             permissions:
-              user.permissions
+              Array.isArray(user.permissions)
+                ? user.permissions
+                : []
           },
 
           JWT_SECRET,
 
           {
-            expiresIn: '24h'
+            expiresIn: '24h',
+
+            issuer:
+              'the-upgrade-admin',
+
+            audience:
+              'the-upgrade-admin'
           }
         );
 
-      const isProduction =
-        process.env.NODE_ENV === 'production' ||
-        !!process.env.VERCEL;
+      /*
+        HTTP-only secure cookie
+      */
 
       res.cookie(
         'token',
         token,
         {
           httpOnly: true,
+
           secure: isProduction,
+
           sameSite: 'strict',
+
+          path: '/',
+
           maxAge:
-            24 * 60 * 60 * 1000,
-          path: '/'
+            24 * 60 * 60 * 1000
         }
       );
 
       logEvent(
         'AUTH_SUCCESS',
-        `User "${user.username}" logged in successfully with role: "${user.role}"`
+        `User "${user.username}" logged in successfully`
       );
 
-      res.json({
-        username: user.username,
-        name: user.name,
-        role: user.role,
+      return res.json({
+        username:
+          user.username,
+
+        name:
+          user.name,
+
+        role:
+          user.role,
+
         permissions:
-          user.permissions
+          Array.isArray(user.permissions)
+            ? user.permissions
+            : []
       });
+
     } catch (err) {
       console.error(
         'Login route error:',
         err
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Internal server login error.'
       });
@@ -1113,11 +961,9 @@ app.post(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| LOGOUT
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   LOGOUT
+============================================================ */
 
 app.post(
   '/api/auth/logout',
@@ -1126,34 +972,35 @@ app.post(
       'token',
       {
         httpOnly: true,
-        secure:
-          process.env.NODE_ENV ===
-            'production' ||
-          !!process.env.VERCEL,
+
+        secure: isProduction,
+
         sameSite: 'strict',
+
         path: '/'
       }
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
+
       message:
         'Logged out successfully.'
     });
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| AUTH STATUS
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   AUTH STATUS
+============================================================ */
 
 app.get(
   '/api/auth/status',
+
   authenticateToken,
+
   (req, res) => {
-    res.json({
+    return res.json({
       username:
         req.user.username,
 
@@ -1169,33 +1016,25 @@ app.get(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| ADMIN API
-|--------------------------------------------------------------------------
-|
-| These routes can remain even if you currently do not have an admin
-| dashboard. They are protected and cannot be accessed without a valid
-| authentication token and permissions.
-|
-*/
-
-/*
-|--------------------------------------------------------------------------
-| METRICS
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ADMIN METRICS
+============================================================ */
 
 app.get(
   '/api/admin/metrics',
+
   authenticateToken,
-  requirePermission('metrics:read'),
+
+  requirePermission(
+    'metrics:read'
+  ),
+
   async (req, res) => {
     try {
       const subs =
         await getSubscribers();
 
-      res.json({
+      const metrics = {
         totalSubscribers:
           subs.length,
 
@@ -1221,9 +1060,13 @@ app.get(
           ),
           subs.length
         ]
-      });
+      };
+
+      return res.json(
+        metrics
+      );
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to compile metrics.'
       });
@@ -1231,26 +1074,27 @@ app.get(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| SUBSCRIBERS
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ADMIN SUBSCRIBERS
+============================================================ */
 
 app.get(
   '/api/admin/subscribers',
+
   authenticateToken,
+
   requirePermission(
     'subscribers:read'
   ),
+
   async (req, res) => {
     try {
       const subs =
         await getSubscribers();
 
-      res.json(subs);
+      return res.json(subs);
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to read subscribers registry.'
       });
@@ -1259,9 +1103,7 @@ app.get(
 );
 
 /*
-|--------------------------------------------------------------------------
-| ADD SUBSCRIBER
-|--------------------------------------------------------------------------
+  ADD SUBSCRIBER
 */
 
 app.post(
@@ -1300,7 +1142,7 @@ app.post(
 
       if (
         subs.some(
-          sub =>
+          (sub) =>
             sub.email.toLowerCase() ===
             email.toLowerCase()
         )
@@ -1318,15 +1160,17 @@ app.post(
 
       logEvent(
         'SUBSCRIBER_ADD',
-        `Manually registered subscriber: "${email}" by admin "${req.user.username}"`
+        `Manually registered subscriber by admin`
       );
 
       const updatedSubs =
         await getSubscribers();
 
-      res.json(updatedSubs);
+      return res.status(200).json(
+        updatedSubs
+      );
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to write subscriber data.'
       });
@@ -1335,22 +1179,26 @@ app.post(
 );
 
 /*
-|--------------------------------------------------------------------------
-| DELETE SUBSCRIBER
-|--------------------------------------------------------------------------
+  DELETE SUBSCRIBER
 */
 
 app.delete(
   '/api/admin/subscribers/:email',
+
   authenticateToken,
+
   requirePermission(
     'subscribers:write'
   ),
+
   async (req, res) => {
+    const email =
+      req.params.email;
+
     try {
       const deleted =
         await deleteSubscriber(
-          req.params.email
+          email
         );
 
       if (!deleted) {
@@ -1362,15 +1210,17 @@ app.delete(
 
       logEvent(
         'SUBSCRIBER_DELETE',
-        `Removed subscriber: "${req.params.email}" by admin "${req.user.username}"`
+        `Removed subscriber by admin`
       );
 
       const updatedSubs =
         await getSubscribers();
 
-      res.json(updatedSubs);
+      return res.status(200).json(
+        updatedSubs
+      );
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to modify registry database.'
       });
@@ -1378,11 +1228,9 @@ app.delete(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| PUBLISH ISSUE
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   CREATE NEWSLETTER ISSUE
+============================================================ */
 
 app.post(
   '/api/admin/issues',
@@ -1400,7 +1248,8 @@ app.post(
 
   body('category')
     .trim()
-    .notEmpty(),
+    .notEmpty()
+    .escape(),
 
   body('excerpt')
     .trim()
@@ -1442,7 +1291,8 @@ app.post(
       const nextIdNum =
         issues.length > 0
           ? parseInt(
-              issues[0].id
+              issues[0].id,
+              10
             ) + 1
           : 1;
 
@@ -1467,20 +1317,30 @@ app.post(
         `${Math.max(
           2,
           Math.round(
-            content.split(' ').length /
+            content.split(/\s+/).length /
               180
           )
         )} min read`;
 
       const newIssue = {
         id: nextId,
-        number: `#${nextId}`,
+
+        number:
+          `#${nextId}`,
+
         title,
+
         category,
+
         excerpt,
-        date: dateStr,
+
+        date:
+          dateStr,
+
         readTime,
+
         question,
+
         content
       };
 
@@ -1490,15 +1350,22 @@ app.post(
 
       logEvent(
         'CREATE_ISSUE',
-        `Creator "${req.user.username}" published Issue #${nextId}: "${title}"`
+        `Creator published Issue #${nextId}: "${title}"`
       );
 
       /*
-       * Broadcast email
-       */
+        BROADCAST NEWSLETTER
+      */
 
-      if (resend) {
+      if (
+        process.env.RESEND_API_KEY
+      ) {
         try {
+          const resend =
+            new Resend(
+              process.env.RESEND_API_KEY
+            );
+
           const subscribers =
             await getSubscribers();
 
@@ -1509,32 +1376,39 @@ app.post(
               from:
                 'The Upgrade <newsletter@theupgrade.co.ke>',
 
-              to: sub.email,
+              to:
+                sub.email,
 
               subject:
                 `The Upgrade — ${title}`,
 
               html: `
-                <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:3px solid #000;padding:30px;background:#f5f0e8;color:#0a0a0a">
+                <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:3px solid #000;padding:30px;background:#f5f0e8;color:#0a0a0a;">
 
-                  <h1>The Upgrade</h1>
+                  <h1 style="border-bottom:2px solid #000;padding-bottom:12px;">
+                    The Upgrade
+                  </h1>
 
-                  <div style="font-size:12px;text-transform:uppercase;margin-bottom:20px">
+                  <div style="font-size:12px;margin-bottom:20px;">
                     Issue ${newIssue.number}
-                    · ${category}
-                    · ${dateStr}
+                    &middot;
+                    ${category}
+                    &middot;
+                    ${dateStr}
                   </div>
 
-                  <h2>${title}</h2>
+                  <h2>
+                    ${title}
+                  </h2>
 
-                  <div style="line-height:1.6;font-size:16px;margin-bottom:30px">
+                  <div style="line-height:1.6;font-size:16px;margin-bottom:30px;">
                     ${content}
                   </div>
 
-                  <div style="border:2px dashed #000;padding:20px;background:#fff">
+                  <div style="border:2px dashed #000;padding:20px;background:#fff;margin-bottom:30px;">
 
                     <strong>
-                      ? One Honest Question to Sit With
+                      One Honest Question to Sit With
                     </strong>
 
                     <p>
@@ -1546,10 +1420,8 @@ app.post(
                   <hr>
 
                   <small>
-                    You are receiving this because you subscribed to The Upgrade.
-                    <a href="${SITE_URL}">
-                      Visit The Upgrade
-                    </a>
+                    You are receiving this because you subscribed
+                    to The Upgrade.
                   </small>
 
                 </div>
@@ -1558,7 +1430,7 @@ app.post(
 
             logEvent(
               'BROADCAST_SENT',
-              `Emailed Issue #${nextId} to subscriber: "${sub.email}"`
+              `Emailed Issue #${nextId}`
             );
           }
         } catch (broadcastErr) {
@@ -1570,17 +1442,21 @@ app.post(
       } else {
         logEvent(
           'BROADCAST_SIMULATOR',
-          `Mock broadcast: Issue #${nextId} simulated.`
+          `Mock broadcast for Issue #${nextId}`
         );
       }
 
-      res.json(
+      return res.status(200).json(
         newIssue
       );
-    } catch (err) {
-      console.error(err);
 
-      res.status(500).json({
+    } catch (err) {
+      console.error(
+        'Issue publishing error:',
+        err
+      );
+
+      return res.status(500).json({
         error:
           'Failed to publish new issue to database.'
       });
@@ -1588,24 +1464,27 @@ app.post(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| ACTIVITY LOG
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ACTIVITY LOG
+============================================================ */
 
 app.get(
   '/api/admin/activity-log',
+
   authenticateToken,
-  requirePermission('logs:read'),
+
+  requirePermission(
+    'logs:read'
+  ),
+
   async (req, res) => {
     try {
       const logs =
         await getActivityLogs();
 
-      res.json(logs);
+      return res.json(logs);
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to access logs.'
       });
@@ -1613,24 +1492,52 @@ app.get(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| USERS
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   SUPERADMIN
+============================================================ */
+
+function requireSuperadmin(
+  req,
+  res,
+  next
+) {
+  if (
+    !req.user ||
+    req.user.role !==
+      'superadmin'
+  ) {
+    return res.status(403).json({
+      error:
+        'Forbidden. Superadmin role clearance required.'
+    });
+  }
+
+  next();
+}
+
+/* ============================================================
+   GET USERS
+============================================================ */
 
 app.get(
   '/api/admin/users',
+
   authenticateToken,
+
   requireSuperadmin,
+
   async (req, res) => {
     try {
-      const creatorUsers =
+      const users =
         await getCreatorUsers();
 
+      /*
+        NEVER return passwords.
+      */
+
       const sanitized =
-        creatorUsers.map(
-          u => ({
+        users.map(
+          (u) => ({
             username:
               u.username,
 
@@ -1645,11 +1552,11 @@ app.get(
           })
         );
 
-      res.json(
+      return res.json(
         sanitized
       );
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to retrieve creator users.'
       });
@@ -1657,11 +1564,9 @@ app.get(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| ADD USER
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   CREATE USER
+============================================================ */
 
 app.post(
   '/api/admin/users',
@@ -1680,8 +1585,8 @@ app.post(
 
   body('password')
     .isLength({
-      min: 6,
-      max: 40
+      min: 8,
+      max: 100
     }),
 
   body('name')
@@ -1716,12 +1621,12 @@ app.post(
     } = req.body;
 
     try {
-      const existingUsers =
+      const users =
         await getCreatorUsers();
 
       if (
-        existingUsers.some(
-          u =>
+        users.some(
+          (u) =>
             u.username.toLowerCase() ===
             username.toLowerCase()
         )
@@ -1773,30 +1678,44 @@ app.post(
       }
 
       const hashedPassword =
-        bcrypt.hashSync(
+        await bcrypt.hash(
           password,
-          10
+          12
         );
 
-      await addCreatorUser({
+      const newUser = {
         username,
+
         password:
           hashedPassword,
+
         name,
+
         role,
+
         permissions
-      });
+      };
+
+      await addCreatorUser(
+        newUser
+      );
 
       logEvent(
         'USER_ADD',
-        `Superadmin "${req.user.username}" created user "${username}" with role "${role}"`
+        `Superadmin created user "${username}" with role "${role}"`
       );
 
-      res.json({
+      return res.json({
         success: true
       });
+
     } catch (err) {
-      res.status(500).json({
+      console.error(
+        'Create user error:',
+        err
+      );
+
+      return res.status(500).json({
         error:
           'Failed to create user account.'
       });
@@ -1804,11 +1723,9 @@ app.post(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| UPDATE USER
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   UPDATE USER
+============================================================ */
 
 app.put(
   '/api/admin/users/:username',
@@ -1820,8 +1737,8 @@ app.put(
   body('password')
     .optional()
     .isLength({
-      min: 6,
-      max: 40
+      min: 8,
+      max: 100
     }),
 
   body('name')
@@ -1848,9 +1765,8 @@ app.put(
       });
     }
 
-    const {
-      username
-    } = req.params;
+    const username =
+      req.params.username;
 
     const {
       password,
@@ -1859,12 +1775,12 @@ app.put(
     } = req.body;
 
     try {
-      const existingUsers =
+      const users =
         await getCreatorUsers();
 
       const user =
-        existingUsers.find(
-          u =>
+        users.find(
+          (u) =>
             u.username.toLowerCase() ===
             username.toLowerCase()
         );
@@ -1875,6 +1791,11 @@ app.put(
             'User not found.'
         });
       }
+
+      /*
+        Prevent current superadmin
+        from removing their own role.
+      */
 
       if (
         req.user.username.toLowerCase() ===
@@ -1899,20 +1820,28 @@ app.put(
           'issues:write',
           'logs:read'
         ];
-      } else if (
+      }
+
+      if (
         role === 'editor'
       ) {
         permissions = [
           'issues:write'
         ];
-      } else if (
+      }
+
+      if (
         role === 'moderator'
       ) {
         permissions = [
           'subscribers:read',
           'subscribers:write'
         ];
-      } else {
+      }
+
+      if (
+        role === 'viewer'
+      ) {
         permissions = [
           'metrics:read',
           'logs:read'
@@ -1922,9 +1851,9 @@ app.put(
       const updatedUser = {
         password:
           password
-            ? bcrypt.hashSync(
+            ? await bcrypt.hash(
                 password,
-                10
+                12
               )
             : user.password,
 
@@ -1942,14 +1871,20 @@ app.put(
 
       logEvent(
         'USER_UPDATE',
-        `Superadmin "${req.user.username}" updated user "${username}"`
+        `Superadmin updated user "${username}"`
       );
 
-      res.json({
+      return res.json({
         success: true
       });
+
     } catch (err) {
-      res.status(500).json({
+      console.error(
+        'Update user error:',
+        err
+      );
+
+      return res.status(500).json({
         error:
           'Failed to update user account.'
       });
@@ -1957,11 +1892,9 @@ app.put(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| DELETE USER
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   DELETE USER
+============================================================ */
 
 app.delete(
   '/api/admin/users/:username',
@@ -1971,18 +1904,21 @@ app.delete(
   requireSuperadmin,
 
   async (req, res) => {
-    const {
-      username
-    } = req.params;
+    const username =
+      req.params.username;
 
     try {
+      /*
+        Prevent self-deletion.
+      */
+
       if (
         req.user.username.toLowerCase() ===
         username.toLowerCase()
       ) {
         return res.status(400).json({
           error:
-            'Self-deletion is forbidden.'
+            'Self-deletion is forbidden. You cannot delete your own active session.'
         });
       }
 
@@ -2000,14 +1936,15 @@ app.delete(
 
       logEvent(
         'USER_DELETE',
-        `Superadmin "${req.user.username}" deleted creator user "${username}"`
+        `Superadmin deleted creator user "${username}"`
       );
 
-      res.json({
+      return res.json({
         success: true
       });
+
     } catch (err) {
-      res.status(500).json({
+      return res.status(500).json({
         error:
           'Failed to delete user account.'
       });
@@ -2015,29 +1952,23 @@ app.delete(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| HEALTH CHECK
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   404 API HANDLER
+============================================================ */
 
-app.get(
-  '/api/health',
+app.use(
+  '/api',
   (req, res) => {
-    res.status(200).json({
-      status: 'ok',
-      service: 'The Upgrade API',
-      timestamp:
-        new Date().toISOString()
+    return res.status(404).json({
+      error:
+        'API endpoint not found.'
     });
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| FRONTEND FALLBACK
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   FRONTEND FALLBACK
+============================================================ */
 
 app.get(
   '*',
@@ -2052,11 +1983,9 @@ app.get(
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| ERROR HANDLER
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ERROR HANDLER
+============================================================ */
 
 app.use(
   (err, req, res, next) => {
@@ -2065,30 +1994,28 @@ app.use(
       err
     );
 
-    if (res.headersSent) {
+    if (
+      res.headersSent
+    ) {
       return next(err);
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       error:
         'Internal server error.'
     });
   }
 );
 
-/*
-|--------------------------------------------------------------------------
-| EXPORT FOR VERCEL
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   EXPORT
+============================================================ */
 
 export default app;
 
-/*
-|--------------------------------------------------------------------------
-| LOCAL DEVELOPMENT SERVER
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   LOCAL SERVER
+============================================================ */
 
 if (!process.env.VERCEL) {
   app.listen(
@@ -2117,6 +2044,7 @@ if (!process.env.VERCEL) {
           'SERVER_START',
           `Server booted successfully on port ${PORT}`
         );
+
       } catch (err) {
         console.error(
           'Server boot error:',
